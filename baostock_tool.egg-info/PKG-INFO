@@ -28,64 +28,129 @@ Requires-Dist: scikit-learn>=1.2.0
 Requires-Dist: tqdm>=4.64.0
 Requires-Dist: tabulate>=0.9.0
 Requires-Dist: jinja2>=3.1.0
+Requires-Dist: requests>=2.28.0
 Provides-Extra: ml
 Requires-Dist: xgboost>=1.7.0; extra == "ml"
 Requires-Dist: lightgbm>=3.3.0; extra == "ml"
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0; extra == "dev"
+Provides-Extra: dashboard
+Requires-Dist: streamlit>=1.30.0; extra == "dashboard"
+Provides-Extra: all
+Requires-Dist: baostock-tool[dashboard,dev,ml]; extra == "all"
 
 # baostock_tool
 
-基于 [baostock](http://baostock.com) 的综合股市分析/量化/回测/选股/预测 Python 工具集。
-纯 Python 实现,接口分层清晰,既可在脚本中调用,也可走 CLI。
+> 基于 [baostock](http://baostock.com) 的 **A 股综合量化工具集**:数据获取 / 技术指标 / 选股 / 策略 / 回测 / 仓位 / 组合 / 量化研究 / 机器学习 / 报告可视化,纯 Python,既可作为库调用,也自带 16 个 CLI 子命令。
+
+![Python](https://img.shields.io/badge/python-3.9%2B-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![Status](https://img.shields.io/badge/status-beta-orange)
+
+---
+
+## 目录
+
+- [项目定位](#项目定位)
+- [功能概览](#功能概览)
+- [安装](#安装)
+- [5 分钟上手](#5-分钟上手)
+- [CLI 速查](#cli-速查)
+- [选股模板](#选股模板)
+- [自定义选股 / 策略](#自定义选股--策略)
+- [仓位管理](#仓位管理)
+- [组合回测](#组合回测)
+- [Walk-Forward 优化](#walk-forward-优化)
+- [量化研究(IC / 分层 / Regime)](#量化研究ic--分层--regime)
+- [K 线形态识别](#k-线形态识别)
+- [ML 预测](#ml-预测)
+- [网格交易回测](#网格交易回测) ⬅️ 新增
+- [配对交易](#配对交易) ⬅️ 新增
+- [多策略融合](#多策略融合) ⬅️ 新增
+- [滚动稳健性测试](#滚动稳健性测试) ⬅️ 新增
+- [资金流 / 北向 / 龙虎榜](#资金流--北向--龙虎榜) ⬅️ 新增(需 akshare)
+- [智能定投 DCA](#智能定投-dca) ⬅️ 新增
+- [涨跌停统计 / 题材热度](#涨跌停统计--题材热度) ⬅️ 新增(需 akshare)
+- [实盘模拟器](#实盘模拟器) ⬅️ 新增
+- [Web 看板 (Streamlit)](#web-看板-streamlit) ⬅️ 新增
+- [数据缓存](#数据缓存)
+- [项目结构](#项目结构)
+- [测试](#测试)
+- [跨平台说明](#跨平台说明)
+- [维护本指南](#维护本指南) ⬅️ 项目更新时同步这里
+- [注意事项](#注意事项)
+- [License](#license)
+
+---
+
+## 项目定位
+
+`baostock_tool` 是对官方 [baostock](http://baostock.com) SDK 的"业务层封装",把常见 A 股量化研究流程抽成可直接 `import` 的模块,**避免每次新项目都重复造轮子**。它适合:
+
+- 想用纯本地 Python 复现论文 / 研报策略的同学;
+- 做日内/日级回测,需要 Sortino / Calmar / VaR / CVaR / Alpha / Beta / IR 等**全套风险指标**;
+- 想一站式打通 **数据 → 指标 → 选股 → 策略 → 回测 → 报告** 的研究流水线;
+- 需要把研究脚本包装成 **CLI**,扔到服务器/定时任务里跑。
+
+不适合:
+
+- 实时行情(baostock 已停用,本工具专注历史数据);
+- 港股 / 美股(目前只覆盖 A 股 + 申万行业 + 沪深 300 / 上证 50 / 中证 500 成分股)。
+
+---
 
 ## 功能概览
 
-| 模块 | 能力 |
+| 模块 | 能力要点 |
 | --- | --- |
-| `data` | K 线 / 复权 / 行业 / 指数成分 / 交易日历 / 三大财报 / **复权因子 / 分红 / 估值 / 成长 / 运营 / 业绩快报** / 宏观 / 利率 / 货币供应 |
-| `data_cache` | **本地 CSV 缓存层**(按 code×freq×adj 切分,自动合并增量) |
-| `indicators` | MA / EMA / MACD / KDJ / RSI / BOLL / ATR / CCI / OBV / 收益 / 波动 / **DMI/ADX / Williams %R / ROC / MFI / TRIX / SAR / BIAS** |
-| `patterns` | **吞没 / 十字星 / 锤头 / 红三兵 / 早晨之星 / 黄昏之星 / 刺穿 / 乌云盖顶 / 三只乌鸦 / 形态打分** |
-| `screener` | 内置模板选股 + 自定义条件组合(技术面+基本面+**形态+量能**) |
-| `strategy` | 8 套经典策略(MA/MACD/KDJ/BOLL/海龟/动量/均值回归/RSI) |
-| `backtest` | 事件驱动回测引擎 + 组合回测(手续费/滑点/止损止盈/**Sortino/Calmar/VaR/CVaR/Alpha/Beta/IR/月度热力**) |
-| `position` | **凯利公式 / 波动率目标 / 固定风险法 / 回撤风控仓位** |
-| `optimizer` | **网格搜索 + Walk-Forward 走步优化** |
-| `portfolio` | **风险平价权重 / 等权 / 信号驱动 / 多空轮动组合回测** |
-| `quant` | 因子 IC、分层回测、相关性、**Brinson 归因 / Regime 检测 / 滚动多空差** |
-| `predict` | sklearn 涨跌分类 / 收益回归 / **Stacking 集成 / 特征选择 / 横截面打分 / 走步 ML**;XGBoost/LightGBM **可选** |
+| `data` | K 线 / 复权 / 申万行业 / 指数成分 / 交易日历 / **三大财报 + 业绩快报 + 业绩预告 + 前十大股东** / **复权因子 / 分红 / 估值 / 成长 / 运营** / 宏观 / 利率 / 货币供应 / 基准指数 / 个股元信息 |
+| `data_cache` | 本地 **CSV 缓存层**,按 `code × freq × adjflag` 切分,自动合并增量、避免重复请求 |
+| `indicators` | MA / EMA / SMA(中式) / MACD / KDJ / RSI / BOLL / ATR / CCI / OBV / 收益 / 波动 / **DMI/ADX / Williams %R / ROC / MFI / TRIX / SAR / BIAS**,支持 `add_all` 一次性加全套 |
+| `patterns` | 吞没 / 十字星 / 锤头 / 上吊线 / 光头光脚(阳/阴) / 刺穿 / 乌云盖顶 / 红三兵 / 三只乌鸦 / 早晨之星 / 黄昏之星 / **多形态打分** |
+| `screener` | **16 个内置模板** + 自定义条件组合(技术面 + 形态 + 量价 + 基本面) + `daily_pick` 流水线 |
+| `strategy` | 8 套经典策略(MA / MACD / KDJ / BOLL / **海龟 / 动量 / 均值回归 / RSI 超卖**) |
+| `backtest` | 事件驱动回测引擎 + 等权组合回测(手续费 / 滑点 / 印花税 / **最低 5 元** / 整百 lot / 止损止盈) + **Sortino / Calmar / VaR / CVaR / Alpha / Beta / IR / 月度热力** |
+| `position` | 凯利公式 / 波动率目标 / 固定风险法 / 回撤风控仓位 + 统一 `PositionSizer` 接口 |
+| `optimizer` | **网格搜索 + Walk-Forward 走步优化** + OOS 聚合指标 |
+| `portfolio` | **等权 / 风险平价 / 信号驱动 / 多空轮动** 组合回测 + 调仓日历 |
+| `quant` | 因子 IC / 分层回测 / 相关性 / **Brinson 归因 / Regime 检测** |
+| `predict` | sklearn 涨跌分类 / 收益回归 / **Stacking 集成 / 特征选择 / 横截面打分 / 走步 ML**;`kind="xgb"` / `kind="lgbm"` **可选** |
 | `report` | 收益曲线 / 回撤 / K线信号 / IC 分布 / **月度热力 / 滚动夏普 / 持仓时间线 / 蜡烛图 / 水下回撤** / 文本与 **jinja2 HTML 报告** |
-| `cli` | 17 个子命令,常用操作一行搞定 |
+| `grid_backtest` | **网格交易复盘**:支持股票代码/中文名输入、A 股规则识别(T+0/T+1/整百/涨跌停)、等差/等比网格、手动/自动区间、底仓/止损/止盈、网格效率分析 |
+| `pairs_trading` | **配对交易**:协整/相关/距离选对、OLS / 滚动 hedge ratio、z-score 进出场回测(三联图 + 文本报告) |
+| `fund_flow` | **资金流 / 北向资金 / 龙虎榜**(akshare 集成):个股主力/超大/大单净流入、沪股通+深股通、东财龙虎榜、板块资金流排名 |
+| `dca` | **智能定投回测**:纯定投 / 均线偏离加仓 / 跌多加仓 / 一次性投入 + 4 策略横向对比 |
+| `market_overview` | **涨跌停统计 / 题材热度**(akshare 集成):当日涨停池 / 跌停 / 炸板 / 连板 / 行业 & 概念排行 / 综合市场情绪(强弱打分 0~1) |
+| `paper_trader` | **实盘模拟器**:多股票多策略每日跑信号、虚拟持仓、状态 JSON 持久化、文本日志、可选 webhook 推送 |
+| `dashboard` | **Web 看板 (Streamlit)**:9 个页面把 18 个模块搬进浏览器,鼠标点点就能跑回测/网格/DCA/资金流/模拟 |
+| `cli` | **24 个子命令** + `baostock-tool-dashboard` 启动器 |
+
+---
 
 ## 安装
 
-从 PyPI(发布后):
+**生产环境(发布后):**
 
 ```bash
 pip install baostock-tool
 ```
 
-从源码(开发模式):
+**开发模式:**
 
 ```bash
 git clone <repo> && cd baostock-tool
 pip install -e ".[ml,dev]"
 ```
 
-可选加速 — 装上后 `predict.DirectionClassifier(kind="xgb")` / `kind="lgbm"` 可用:
+可选 ML 加速 — 装上后 `predict.DirectionClassifier(kind="xgb")` / `kind="lgbm"` 可用:
 
 ```bash
 pip install -e ".[ml]"
 ```
 
-跑测试:
+依赖详见 `pyproject.toml`(核心:`baostock`、`pandas`、`numpy`、`matplotlib`、`scipy`、`scikit-learn>=1.2`、`tqdm`、`jinja2`)。
 
-```bash
-pytest tests/ -v
-```
+> **登录提示:** 大部分数据接口要求先登录 baostock。脚本里 `client.ensure_login()` 会自动处理;CLI 里跑一次 `python -m baostock_tool.cli login` 即可,登录态是进程级的。
 
-依赖见 `pyproject.toml`。
+---
 
 ## 5 分钟上手
 
@@ -95,16 +160,15 @@ from baostock_tool import data, indicators, strategy, backtest, report
 # 1) 拉数据(自动走本地缓存)
 df = data.get_kline("sh.600000", "2024-01-01", "2025-12-31")
 
-# 2) 加指标
+# 2) 加全套指标
 df = indicators.add_all(df)
 
 # 3) 跑策略
 sig = strategy.run_strategy("ma_cross", df, {"short": 5, "long": 20})
 
-# 4) 回测 + 风险指标
-engine = backtest.BacktestEngine()
-result = engine.run(df, sig)
-print(result.risk_metrics())   # 总收益/年化/夏普/Sortino/Calmar/VaR/CVaR/胜率/盈亏比
+# 4) 回测 + 全套风险指标
+result = backtest.BacktestEngine().run(df, sig)
+print(result.risk_metrics())    # 总收益 / 年化 / 夏普 / Sortino / Calmar / VaR / CVaR / 胜率 / 盈亏比
 
 # 5) 出报告
 report.plot_equity(result, save_path="equity.png")
@@ -112,89 +176,115 @@ report.plot_monthly_heatmap(result.daily_returns, save_path="heatmap.png")
 report.write_text_report(result, "report.txt", "sh.600000", "ma_cross")
 ```
 
-> 也可以直接用安装时生成的 CLI 二进制:`baostock-tool login`、`baostock-tool kline sh.600000 ...`,等价于 `python -m baostock_tool.cli ...`。
+> 也可以用 `pip install` 时生成的命令行二进制 `baostock-tool`,例如 `baostock-tool login`、`baostock-tool kline sh.600000 ...`,等价于 `python -m baostock_tool.cli ...`。
+
+---
 
 ## CLI 速查
 
+CLI 共 **24 个子命令**:`login / logout / industry / kline / constituents / screen / backtest / predict / quant / risk / optimize / pattern / cache / info / macro / ranking / grid / pairs / ensemble / robustness / fundflow / dca / market / paper`。
+
 ```bash
-# 基础
+# ======== 基础数据 ========
 python -m baostock_tool.cli login
 python -m baostock_tool.cli kline sh.600000 --start 2024-01-01 --end 2025-12-31 --n 20
 python -m baostock_tool.cli constituents hs300 --date 2025-12-01
 python -m baostock_tool.cli industry
 python -m baostock_tool.cli info sh.600000 --industry
 python -m baostock_tool.cli macro
-
-# 选股
-python -m baostock_tool.cli screen macd_golden --limit 20
-python -m baostock_tool.cli screen pattern_bullish_reversal --limit 20
-python -m baostock_tool.cli screen high_turnover_breakout --limit 30
-
-# 回测 + 报告
-python -m baostock_tool.cli backtest sh.600000 --strategy ma_cross \
-    --start 2023-01-01 --stop-loss 0.08 --take-profit 0.30 --report ./output
-
-# 风险指标 + 基准
-python -m baostock_tool.cli risk sh.600000 --strategy ma_cross --benchmark sh.000300
-
-# ML 预测
-python -m baostock_tool.cli predict sh.600000 --model clf --horizon 1
-python -m baostock_tool.cli predict sh.600000 --model reg --horizon 5
-
-# 横截面打分排序
-python -m baostock_tool.cli ranking --index hs300 --top 20 --save ./scores.csv
-
-# Walk-Forward 优化
-python -m baostock_tool.cli optimize sh.600000 --strategy ma_cross \
-    --walk-forward --grid '{"short":[3,5,8],"long":[10,20,30]}' --report ./output
-
-# 形态识别
-python -m baostock_tool.cli pattern sh.600000 --patterns "morning_star,engulfing_bullish"
-
-# 缓存管理
 python -m baostock_tool.cli cache info
 python -m baostock_tool.cli cache clear
 
-# 因子分析
+# ======== 选股(CLI 当前支持 9 个模板,其余模板请用 screener.screen(...) 见"选股模板") ========
+python -m baostock_tool.cli screen macd_golden --limit 20
+python -m baostock_tool.cli screen kdj_oversold --limit 20
+python -m baostock_tool.cli screen volume_breakout --limit 30
+
+# ======== 回测 + 报告 ========
+python -m baostock_tool.cli backtest sh.600000 --strategy ma_cross \
+    --start 2023-01-01 --stop-loss 0.08 --take-profit 0.30 --report ./output
+
+# ======== 风险指标 + 基准 ========
+python -m baostock_tool.cli risk sh.600000 --strategy ma_cross --benchmark sh.000300
+
+# ======== ML 预测 ========
+python -m baostock_tool.cli predict sh.600000 --model clf --horizon 1
+python -m baostock_tool.cli predict sh.600000 --model reg --horizon 5
+
+# ======== 横截面打分排序 ========
+python -m baostock_tool.cli ranking --index hs300 --top 20 --save ./scores.csv
+
+# ======== Walk-Forward 优化 ========
+python -m baostock_tool.cli optimize sh.600000 --strategy ma_cross \
+    --walk-forward --grid '{"short":[3,5,8],"long":[10,20,30]}' --report ./output
+
+# ======== 形态识别 ========
+python -m baostock_tool.cli pattern sh.600000 --patterns "morning_star,engulfing_bullish"
+
+# ======== 因子分析 ========
 python -m baostock_tool.cli quant --index hs300 --lookback 180 --report ./output
+
+# ======== 网格交易复盘(支持代码或中文名,如"浦发银行" / "sh.600000") ========
+python -m baostock_tool.cli grid sh.600000 \
+    --start 2022-01-01 --end 2024-12-31 \
+    --mode geometric --grids 10 --lower 9.5 --upper 11.0 \
+    --shares 200 --report ./output/grid_sh600000
+
+python -m baostock_tool.cli grid 浦发银行 \
+    --start 2022-01-01 --end 2024-12-31 \
+    --mode geometric --grids 15 --lower-pct 0.85 --upper-pct 1.15 \
+    --lookback 60 --base 1000 --stop-loss 0.08 --take-profit 0.30 \
+    --report ./output/grid_pf
 ```
+
+> **小贴士:** CLI 子命令的 `--grid`、`--params` 接受 JSON 字符串;`--report <dir>` 会自动把文本报告、收益曲线、回撤图、K线图等写到该目录(默认是 `output/`)。
+
+---
 
 ## 选股模板
 
-| 模板 | 说明 |
-| --- | --- |
-| `low_pe` | 0 < PE_TTM < 20 |
-| `high_pb` | PB < 1 |
-| `macd_golden` | MACD 金叉 |
-| `kdj_oversold` | KDJ 超卖 |
-| `rsi_oversold` | RSI < 30 |
-| `rsi_neutral` | RSI 中性区(40-60) |
-| `volume_breakout` | 量能突破(成交量 ≥ 20 日均量 × 2) |
-| `new_high_20` | 20 日新高 |
-| `low_pe_high_turnover` | 低 PE + 高换手率 |
-| `high_turnover_breakout` | 高换手 + 量能放大 |
-| `bullish_trend` | 多头排列(MA5>MA10>MA20>MA60) |
-| `momentum_value` | 动量 + 低估值 |
-| `pattern_bullish_reversal` | 看涨形态共振(吞没 / 锤头 / 早晨之星 等 ≥ 2 个) |
-| `pattern_morning_star` | 早晨之星形态 |
-| `pattern_engulfing` | 看涨吞没形态 |
-| `bbi_bullish` | BBI 上穿(MA3+6+12+24)/4 |
+`screener.SCREEN_TEMPLATES` 定义了 **16 个内置模板**。通过 `python -m baostock_tool.cli screen` 调用的模板是其子集(目前 CLI 的 `choices` 暴露了 9 个),其余请用 `screener.screen(...)` 调用:
 
-## 自定义选股
+| 模板 | 含义 | CLI `screen` |
+| --- | --- | :---: |
+| `low_pe` | 0 < PE_TTM < 20 | ✅ |
+| `high_pb` | PB < 1 | ✅ |
+| `macd_golden` | MACD 金叉 | ✅ |
+| `kdj_oversold` | KDJ 超卖 | ✅ |
+| `rsi_oversold` | RSI < 30 | ✅ |
+| `rsi_neutral` | RSI 中性区(40–60) | ❌ |
+| `volume_breakout` | 量能突破(量 ≥ 20 日均量 × 2) | ✅ |
+| `new_high_20` | 20 日新高 | ✅ |
+| `low_pe_high_turnover` | 低 PE(0–25) + 涨幅 2%–20% | ❌ |
+| `high_turnover_breakout` | 高换手(80% 分位以上) + 量能放大(1.5×) | ❌ |
+| `bullish_trend` | 多头排列(MA5>MA10>MA20>MA60) | ✅ |
+| `momentum_value` | 动量(20 日 > 5%) + 低估值(PE<30) | ❌ |
+| `pattern_bullish_reversal` | 看涨形态共振(吞没 / 锤头 / 早晨之星 等 ≥ 2 个) | ❌ |
+| `pattern_morning_star` | 早晨之星形态 | ❌ |
+| `pattern_engulfing` | 看涨吞没形态 | ❌ |
+| `bbi_bullish` | BBI(MA3+6+12+24)/4 上穿 | ❌ |
+
+> 上表里标 ❌ 的模板仍可在 Python 里通过 `from baostock_tool.screener import screen; screen("pattern_bullish_reversal", date="2025-06-01")` 使用;要全部 16 个模板在 CLI 里可用,把 `cli.py` 的 `cmd_screen` `choices` 列表扩到 `SCREEN_TEMPLATES.keys()` 即可。
+
+---
+
+## 自定义选股 / 策略
+
+**自定义选股:**
 
 ```python
-from baostock_tool import screener, patterns
+from baostock_tool import screener
 
 s = screener.Screen(date="2025-06-01", lookback_days=120)
 s.add(screener.MA5_gt_MA20)
 s.add(screener.macd_golden_cross)
 s.add(screener.pe_between(0, 30))
-s.add(screener.pattern("morning_star"))            # K 线形态
-s.add(screener.pattern_bullish_score(2))            # 至少 2 个看涨形态共振
+s.add(screener.pattern("morning_star"))           # K 线形态
+s.add(screener.pattern_bullish_score(2))           # 至少 2 个看涨形态共振
 picks = s.run(limit=20)
 ```
 
-## 自定义策略
+**自定义策略:**
 
 ```python
 from baostock_tool import backtest
@@ -211,59 +301,52 @@ def my_strategy(df, params):
 df = ...   # K 线
 sig = my_strategy(df, {"n": 10})
 result = backtest.BacktestEngine().run(df, sig)
-print(result.risk_metrics())  # 全套风险与绩效指标
+print(result.risk_metrics())     # 全套风险与绩效指标
 ```
+
+---
 
 ## 仓位管理
 
 ```python
 from baostock_tool import position
 
-# 凯利公式
-f = position.kelly_fraction(win_rate=0.6, win_loss_ratio=2.0)  # → 0.25(默认 cap)
+# 凯利公式(默认 cap=0.25,防极端值)
+f = position.kelly_fraction(win_rate=0.6, win_loss_ratio=2.0)         # → 0.25
 
-# 波动率目标仓位
+# 波动率目标仓位(自动滞后一日,避免未来函数)
 weights = position.volatility_target(returns, target_vol=0.15, lookback=60)
 
 # 固定风险法
 size = position.fixed_fractional(capital=100000, risk_per_trade=0.02, stop_loss_pct=0.05)
 
-# 统一接口
+# 统一接口(method ∈ {'all-in','kelly','vol-target','fixed-frac','dd-guard'})
 sizer = position.PositionSizer(method="kelly", win_rate=0.55, win_loss_ratio=1.5)
 w = sizer.size({"capital": 100000})
 ```
 
-## 量化研究
-
-```python
-from baostock_tool import quant
-ic = quant.factor_ic(factor_df, fwd_ret_df, method="spearman")
-print(quant.ic_summary(ic))
-layered = quant.layered_backtest(factor_df, fwd_ret_df, q=5)
-print(layered)
-
-# Regime 检测
-regimes = quant.regime_detection(returns_series, n=20)  # bull/bear/side
-```
+---
 
 ## 组合回测
 
 ```python
 from baostock_tool import portfolio
 
-# 等权
+# 等权 + 周一调仓
 p = portfolio.Portfolio(prices, rebalance_freq="W-MON").run()
 
-# 风险平价
+# 风险平价权重
 cov = prices.pct_change().cov() * 252
 w = portfolio.risk_parity_weights(cov)
 p_rp = portfolio.Portfolio(prices, rebalance_freq="ME",
                             weight_fn=lambda dt, pr: w).run()
 
-# 多空动量
+# 多空动量:每期 top_k/2 做多、top_k/2 做空,等权
 signal = prices.pct_change(20)
 p_ls = portfolio.long_short_backtest(prices, signal, top_k=4, rebalance_freq="W-MON")
 ```
+
+---
 
 ## Walk-Forward 优化
 
@@ -275,16 +358,52 @@ df_gs = optimizer.grid_search(df, "ma_cross",
                               param_grid={"short": [3, 5, 8], "long": [10, 20, 30]},
                               metric="calmar_ratio")
 
-# 走步优化
+# 走步优化(防过拟合,聚合 OOS 风险指标)
 opt = optimizer.WalkForwardOptimizer(
     strategy_name="ma_cross",
     param_grid={"short": [3, 5, 8], "long": [10, 20, 30]},
     n_splits=5, metric="calmar_ratio",
 )
 res = opt.run(df)
-print(res.summary())             # 每 fold 训练/验证得分 + 最优参数
-print(res.aggregate_metrics)     # 拼接 OOS 的全套风险指标
+print(res.summary())              # 每 fold 训练/验证得分 + 最优参数
+print(res.aggregate_metrics)      # 拼接 OOS 的全套风险指标
 ```
+
+---
+
+## 量化研究(IC / 分层 / Regime)
+
+```python
+from baostock_tool import quant
+ic = quant.factor_ic(factor_df, fwd_ret_df, method="spearman")
+print(quant.ic_summary(ic))                       # IC_mean / IC_std / IC_IR / t 统计
+layered = quant.layered_backtest(factor_df, fwd_ret_df, q=5)
+print(layered)
+
+# Regime 检测(简单滚动 z-score 划分 bull/bear/side)
+regimes = quant.regime_detection(returns_series, n=20)
+```
+
+---
+
+## K 线形态识别
+
+```python
+from baostock_tool import data, patterns as ptn
+
+df = data.get_kline("sh.600000", "2024-01-01", "2025-12-31")
+print(ptn.list_patterns())                          # 所有形态
+
+# 命中某形态
+hits = df.index[ptn.detect(df, "morning_star")]
+
+# 多形态看涨打分(≥ 2 可视为较强信号)
+score = ptn.pattern_score(df, bullish=True)
+```
+
+支持的形态(共 12 个):`doji / hammer / hanging_man / marubozu_bullish / marubozu_bearish / engulfing_bullish / engulfing_bearish / piercing / dark_cloud_cover / three_white_soldiers / three_black_crows / morning_star / evening_star`。
+
+---
 
 ## ML 预测
 
@@ -303,7 +422,7 @@ print(predict.predict_next(df, clf))
 reg = predict.PriceRegressor(kind="gbdt")
 reg_metrics = reg.fit_walk_forward(df, horizon=5, target="return")
 
-# 可选:装上 xgboost 后 DirectionClassifier(kind="xgb") / lightgbm 后 kind="lgbm"
+# 可选: 装上 xgboost 后 DirectionClassifier(kind="xgb") / lightgbm 后 kind="lgbm"
 # Stacking 集成
 ens = predict.StackingEnsemble(task="clf", base_kinds=("gbdt", "rf"))
 ens.fit(X, y)
@@ -319,20 +438,706 @@ scores = predict.cross_sectional_score(
 )
 ```
 
-## K 线形态识别
+`predict.AVAILABLE_MODELS` 默认 `("gbdt", "rf", "logistic", "ridge")`,装了 xgboost / lightgbm 后追加 `("xgb",)` / `("lgbm",)`。
+
+---
+
+## 网格交易回测
+
+为 A 股量身定制:支持**代码或中文名**输入,自动识别交易规则(**T+0 / T+1** / 整百 / 涨跌停 / 印花税),输出完整交易明细、网格效率、收益曲线与文本报告。
+
+**支持的交易制度与涨跌幅(自动识别):**
+
+| 代码段 | 制度 | 涨跌幅 |
+| --- | --- | --- |
+| 沪深主板 / 中小板 (`sh.6/9`, `sz.0`) | T+1 | 10% |
+| 科创板 (`sh.688`) / 创业板 (`sz.30`) | T+1 | 20% |
+| 北交所 (`bj.`) | T+1 | 30% |
+| ST / *ST | T+1 | 5% |
+| 沪深 ETF / LOF (`sh.5`, `sz.1`) | **T+0** | 10% |
+| 可转债 (`sh.110/113`, `sz.123`) | **T+0** | 30% (熔断机制) |
+| 国债 / 地方债 (`sh.01/02/10`, `sz.10`) | **T+0** | 无 |
+
+> T+0 时,当日买入的份额**立即可卖** — 这是 ETF / 可转债网格能高频"做差价"的关键。可以用 `t0={None,True,False}` 强制指定,默认自动识别。
+
+**支持的网格参数:**
+
+| 参数 | 含义 | 默认 |
+| --- | --- | --- |
+| `grid_mode` | `fixed`(等差) / `geometric`(等比) | geometric |
+| `n_grids` | 网格数 | 10 |
+| `lower` / `upper` | 手动下/上沿(价) | — |
+| `lower_pct` / `upper_pct` | 自动:`lower = lookback 期最低 × lower_pct` | — |
+| `lookback` | 自动区间用回看窗口(交易日) | 60 |
+| `shares_per_grid` | 每格成交股数(自动整百对齐) | 100 |
+| `base_position` | 初始底仓(股) | 0 |
+| `stop_loss` / `take_profit` | 持仓回撤止损 / 浮盈止盈(相对均价) | None |
+| `commission` / `stamp_tax` / `slippage` / `min_commission` | 成本 | 0.0003 / 0.001 / 0.001 / 5 |
+| `price_limit_override` | 手动指定涨跌幅,跳过代码识别 | None |
+| `t0` | `None`=自动识别 / `True`=强制 T+0 / `False`=强制 T+1 | None(自动) |
+
+**Python 用法:**
 
 ```python
-from baostock_tool import data, patterns as ptn
+from baostock_tool import grid_backtest as gb
 
-df = data.get_kline("sh.600000", "2024-01-01", "2025-12-31")
-print(ptn.list_patterns())  # 所有形态
+# 1) 中文名 + 手动区间
+r = gb.run("浦发银行", start="2022-01-01", end="2024-12-31",
+           grid_mode="geometric", n_grids=10,
+           lower=7.5, upper=11.0, shares_per_grid=200)
+print(r.summary())            # 一行核心指标 + 同期股票收益 + 超额
 
-# 命中某形态
-hits = df.index[ptn.detect(df, "morning_star")]
+# 2) 自动区间(用 lookback=60 日 low/high 的 0.85~1.15 倍)
+r = gb.run("sh.600000", start="2022-01-01", end="2024-12-31",
+           grid_mode="geometric", n_grids=15,
+           lower_pct=0.85, upper_pct=1.15, lookback=60,
+           shares_per_grid=300, base_position=0)
 
-# 多形态看涨打分
-score = ptn.pattern_score(df, bullish=True)  # ≥ 2 可视为较强信号
+# 3) 加底仓 + 止损止盈
+r = gb.run("sz.000001", start="2022-01-01", end="2024-12-31",
+           grid_mode="fixed", n_grids=8,
+           lower_pct=0.85, upper_pct=1.15, lookback=60,
+           shares_per_grid=200, base_position=1000,
+           stop_loss=0.08, take_profit=0.30)
+
+# 4) T+0 品种(沪深 300 ETF) — 自动识别为 T+0,允许当日买卖
+r = gb.run("sh.510300", start="2022-01-01", end="2024-12-31",
+           grid_mode="geometric", n_grids=10,
+           lower_pct=0.95, upper_pct=1.05, lookback=30,
+           shares_per_grid=1000)            # 不传 t0 → 自动按代码识别
+print(r.summary()["交易制度"])            # → "T+0"
+
+# 5) 强制 T+0 / T+1 对比(同一只 ETF)
+r_t0 = gb.run("sh.510300", ..., t0=True)
+r_t1 = gb.run("sh.510300", ..., t0=False)
+
+# 4) 完整往返的网格效率(实际毛收益 / 理论最大毛收益)
+print(r.grid_efficiency())    # buy_date / sell_date / efficiency / holding_days ...
+
+# 5) 交易明细(底仓/网格/止损止盈,带 round_pnl 字段)
+print(r.trades_df().head(20))
+
+# 6) 画图 + 文本报告
+gb.write_text_report(r, "report.txt")
+gb.plot(r, save_dir="./output/grid")
 ```
+
+**CLI 用法:**
+
+```bash
+python -m baostock_tool.cli grid 浦发银行 \
+    --start 2022-01-01 --end 2024-12-31 \
+    --mode geometric --grids 10 --lower 7.5 --upper 11.0 \
+    --shares 200 --report ./output/grid
+
+# T+0 ETF 复盘(自动识别 T+0;可用 --t0 {auto,true,false} 强制)
+python -m baostock_tool.cli grid sh.510300 \
+    --start 2022-01-01 --end 2024-12-31 \
+    --mode geometric --grids 10 \
+    --lower-pct 0.95 --upper-pct 1.05 --lookback 30 \
+    --shares 1000 --t0 auto --report ./output/grid_etf
+
+# ======== 配对交易(银行股) ========
+python -m baostock_tool.cli pairs sh.600000,sh.600036,sh.601398,sh.601939 \
+    --start 2022-01-01 --end 2024-12-31 \
+    --method cointest --top-n 5 --backtest \
+    --entry-z 2.0 --exit-z 0.5 --report ./output/pairs
+
+# ======== 多策略融合(投票/加权) ========
+python -m baostock_tool.cli ensemble sh.600000 \
+    --strategies ma_cross,macd,kdj,rsi_oversold \
+    --voting weighted --threshold 0.3 --report ./output/ensemble
+
+python -m baostock_tool.cli ensemble sh.600000 \
+    --strategies ma_cross,macd,kdj,rsi_oversold \
+    --voting majority --majority-min 2
+
+# ======== 滚动稳健性测试 ========
+python -m baostock_tool.cli robustness sh.600000 \
+    --strategy ma_cross --params '{"short":5,"long":20}' \
+    --window 252 --step 63 --report ./output/robustness
+
+# ======== 资金流 / 北向 / 龙虎榜(需 pip install akshare) ========
+python -m baostock_tool.cli fundflow individual --code sh.600000 --limit 10
+python -m baostock_tool.cli fundflow northbound
+python -m baostock_tool.cli fundflow longhubang --start 2024-01-01 --end 2024-12-31
+python -m baostock_tool.cli fundflow sector --indicator 今日 --sector-type 行业资金流
+
+# ======== 智能定投 ========
+python -m baostock_tool.cli dca sh.510300 --start 2018-01-01 --end 2024-12-31 \
+    --amount 2000 --frequency monthly --strategy smart --report ./output/dca
+python -m baostock_tool.cli dca sh.510300 --start 2018-01-01 --end 2024-12-31 \
+    --amount 2000 --compare
+
+# ======== 涨跌停 / 题材热度(需 akshare) ========
+python -m baostock_tool.cli market limit_up --date 2024-12-15
+python -m baostock_tool.cli market consecutive --date 2024-12-15 --n 3
+python -m baostock_tool.cli market sector --date 2024-12-15
+python -m baostock_tool.cli market sentiment --date 2024-12-15
+python -m baostock_tool.cli market trend --start 2024-11-01 --end 2024-12-15
+
+# ======== 实盘模拟器 ========
+python -m baostock_tool.cli paper sh.600000,sh.510300 \
+    --strategy ma_cross --params '{"short":5,"long":20}' \
+    --cash 200000 --date 2024-12-15 --state ./paper_state.json
+```
+
+会同时输出 `grid_report.txt` / `price_grid.png` / `equity.png` / `grid_trades.csv` / `grid_efficiency.csv`。
+
+**复盘重点关注:**
+
+- **`完整往返`**:完整买入→卖出次数(用于估算网格频率)。
+- **`网格效率`**:每次往返毛收益 / 理论最大毛收益(等比约 88%、等差 80%~95% 都算正常;过低说明被滑点/手续费吃掉太多)。
+- **`超额(网格-股票)`**:网格策略相对纯持有股票的额外收益(震荡市期望为正、单边市期望为负)。
+- **`期末持仓` vs `完整往返`**:如果期末持仓远大于往返数,说明行情偏单边、网格没怎么"做差价"。
+
+---
+
+## 配对交易
+
+经典统计套利:用协整 / 相关 / 距离选出"价格走势相似"的股票对,跟踪其**价差**的 z-score,触阈做多做空(需要做空工具 — 股指期货 / 配对 ETF / 反向 ETF)。
+
+**Python 用法:**
+
+```python
+from baostock_tool import data, pairs_trading as pt
+import pandas as pd
+
+# 1) 拉一批同行业股票
+codes = ["sh.600000", "sh.600036", "sh.601398", "sh.601939"]
+prices = pd.DataFrame({c: data.get_kline(c, "2022-01-01", "2024-12-31")["close"]
+                       for c in codes}).dropna()
+
+# 2) 选对(cointest 协整法)
+pairs = pt.select_pairs(prices, method="cointest", top_n=5)
+print(pairs)   # code_a, code_b, score(-pvalue), hedge_ratio
+
+# 3) 跑配对回测(取第一对)
+a, b = pairs.iloc[0]["code_a"], pairs.iloc[0]["code_b"]
+result = pt.pairs_backtest(prices[a], prices[b],
+                           entry_z=2.0, exit_z=0.5, lookback=60,
+                           capital=200_000, t0=False)
+print(result.summary())
+
+# 4) 三联图(价差 / z-score / 权益)
+pt.plot(result, save_path="./output/pairs.png")
+pt.write_text_report(result, "./output/pairs.txt")
+```
+
+**CLI 用法:**
+
+```bash
+python -m baostock_tool.cli pairs sh.600000,sh.600036,sh.601398,sh.601939 \
+    --start 2022-01-01 --end 2024-12-31 \
+    --method cointest --top-n 5 --backtest \
+    --entry-z 2.0 --exit-z 0.5 --report ./output/pairs
+```
+
+**选对方法对比:**
+
+| method | 原理 | 适用 |
+| --- | --- | --- |
+| `correlation` | 按 \|Pearson 相关\| 排序,>min_corr 即入选 | 速度快,粗筛 |
+| `cointest` | 先按相关预筛,再跑 Engle-Granger 协整检验,按 p-value 升序 | **最常用**,经济含义强 |
+| `distance` | 按 (a-b).std() / mean(mid) 距离比,值越小越配 | 完全无脑先看,无统计假设 |
+
+**对冲假设:** A、B 均默认可做空做多 — 实际 A 股用 股指期货 / 反向 ETF / 配对 ETF 替代,`t0=True` 用于 ETF / 可转债配对。
+
+---
+
+## 多策略融合
+
+把多套策略的信号按权重或投票规则融合,**降低单策略过拟合风险**。
+
+**三种 voting 模式:**
+
+| 模式 | 逻辑 | 适用 |
+| --- | --- | --- |
+| `weighted` | 加权求和:`Σ(signal_i × w_i) > threshold` 入场 | 想给"更信任"的策略更高权重 |
+| `majority` | 多数投票:N 套里 ≥ `majority_min` 套同向才入 | 想过滤掉"独苗"信号 |
+| `veto` | 多数投票 + 任何反向就否决 | 最保守,适合震荡市 |
+
+**Python 用法:**
+
+```python
+from baostock_tool import data, backtest, strategy as st
+
+df = data.get_kline("sh.600000", "2022-01-01", "2024-12-31")
+ens = st.EnsembleStrategy(
+    ["ma_cross", "macd", "kdj", "rsi_oversold"],
+    weights=[0.4, 0.3, 0.2, 0.1],   # 给 MA 更高权重
+    voting="weighted", entry_threshold=0.3,
+)
+sig = ens.run(df)
+result = backtest.BacktestEngine().run(df, sig)
+print(result.summary())
+```
+
+**CLI 用法:**
+
+```bash
+python -m baostock_tool.cli ensemble sh.600000 \
+    --strategies ma_cross,macd,kdj,rsi_oversold \
+    --weights '[0.4,0.3,0.2,0.1]' \
+    --voting weighted --threshold 0.3 --report ./output/ensemble
+```
+
+---
+
+## 滚动稳健性测试
+
+**同一组参数**在多个滑动窗口上跑回测,看表现是否一致 — 这比 Walk-Forward 更严,因为 Walk-Forward 每窗口可以重选参数,而 Robustness 是**测参数本身是否经得起时间**。
+
+**Python 用法:**
+
+```python
+from baostock_tool import data, optimizer as opt
+
+df = data.get_kline("sh.600000", "2022-01-01", "2024-12-31")
+rr = opt.RollingRobustness(
+    "ma_cross", params={"short": 5, "long": 20},
+    window=120, step=30,
+).run(df)
+print(rr.summary())            # 中位夏普、夏普 std、盈利 fold 数 ...
+print(rr.robustness_score())   # 0~1 的 overall 评分(越大越稳)
+```
+
+**稳健性评分分量(0~1):**
+
+| 分量 | 含义 | 越接近 1 |
+| --- | --- | --- |
+| `profit_rate` | 盈利 fold / 总 fold | 所有窗口都赚钱 |
+| `stability` | 1 - 夏普变异系数 CV | 各窗口夏普接近 |
+| `dd_score` | 最差回撤的"温和度"(-30% 内 = 1) | 没有灾难性窗口 |
+| `overall` | 三者等权平均 | **总评分** |
+
+**CLI 用法:**
+
+```bash
+python -m baostock_tool.cli robustness sh.600000 \
+    --strategy ma_cross --params '{"short":5,"long":20}' \
+    --window 252 --step 63 --report ./output/robustness
+```
+
+---
+
+## 资金流 / 北向 / 龙虎榜
+
+**实战必备的"题材/资金"数据**,baostock 不提供,通过 **akshare**(可选)从东方财富抓取。
+
+**安装:**
+
+```bash
+pip install akshare
+```
+
+**Python 用法:**
+
+```python
+from baostock_tool import fund_flow as ff
+
+# 1) 个股资金流(主力 / 超大 / 大 / 中 / 小单 净流入)
+df = ff.get_fund_flow("sh.600000")
+
+# 2) 北向资金汇总(沪股通 + 深股通 + 港股通)
+df = ff.get_northbound()
+
+# 3) 龙虎榜(上榜原因 + 净买额 + 买卖营业部)
+df = ff.get_longhubang("20240101", "20241231")
+
+# 4) 板块资金流排名(行业 / 概念 / 地域)
+df = ff.get_sector_fund_flow(indicator="今日", sector_type="行业资金流")
+
+# 5) 强资金流入板块(主力净流入 > 阈值)
+df = ff.strong_capital_inflow(threshold=0)
+```
+
+**CLI 用法:**
+
+```bash
+python -m baostock_tool.cli fundflow individual --code sh.600000 --limit 10
+python -m baostock_tool.cli fundflow northbound
+python -m baostock_tool.cli fundflow longhubang --start 2024-01-01 --end 2024-12-31
+python -m baostock_tool.cli fundflow sector --indicator 今日 --sector-type 行业资金流
+```
+
+**字段说明:** akshare 字段以东财中文为准(主力净流入 / 超大单净流入 / 大单净流入 / 板块 / 资金方向 等),数据源偶有抽风时函数返回空 DataFrame,建议容错处理。
+
+---
+
+## 智能定投 DCA
+
+**普通用户友好**:长期定投的复盘工具。提供 4 种策略 + 一次跑对比。
+
+**Python 用法:**
+
+```python
+from baostock_tool import dca
+
+# 1) 4 策略对比
+cmp = dca.compare_strategies("sh.510300", "2018-01-01", "2024-12-31",
+                              amount_per_period=2000, frequency="monthly")
+print(cmp)
+
+# 2) 单策略详细回测
+r = dca.dca_backtest("sh.510300", "2018-01-01", "2024-12-31",
+                      amount_per_period=2000, frequency="monthly",
+                      strategy="smart", ma_window=120)
+print(r.summary())            # 平均成本、累计投入、期末市值、总收益 / 年化
+
+# 3) 报告 + 图
+dca.write_text_report(r, "./output/dca.txt")
+dca.plot(r, save_path="./output/dca.png")         # 累计投入 vs 市值
+```
+
+**CLI 用法:**
+
+```bash
+python -m baostock_tool.cli dca sh.510300 \
+    --start 2018-01-01 --end 2024-12-31 \
+    --amount 2000 --frequency monthly --strategy smart --report ./output/dca
+
+python -m baostock_tool.cli dca sh.510300 --compare
+```
+
+**4 种策略对比:**
+
+| 策略 | 行为 | 适用 |
+| --- | --- | --- |
+| `lump_sum` | 一次性投入(在首日) | 长期看好、有大笔闲钱 |
+| `pure` | 纯定投,每期固定金额 | 普通人定投 |
+| `dip_buy` | 跌幅加仓(上一期到当期跌幅 < 阈值 → 翻倍) | 越跌越买 |
+| `smart` | 均线偏离加仓(< 0.95×MA → 1.5x,< 0.90×MA → 2x,> 1.10×MA → 0.5x) | 想更"聪明"地定投 |
+
+**复盘关键指标:**
+
+- **`平均成本` vs 期末价** — 平均成本越低越好
+- **`完整买入次数`** — 智能 / 跌多策略会因加仓而次数 ≥ pure,但累计投入也更大
+- **`总收益率`** — 跨策略对比时,smart 通常跑赢 pure (下跌市更明显)
+
+---
+
+## 涨跌停统计 / 题材热度
+
+**早盘扫描 + 复盘** — 看市场情绪、看哪些行业/题材在涨、看哪些是连板龙头。
+
+**Python 用法:**
+
+```python
+from baostock_tool import market_overview as mo
+
+# 1) 当日涨停 / 跌停 / 炸板 股池
+zu = mo.daily_limit_up("2024-12-15")
+zd = mo.daily_limit_down("2024-12-15")
+zb = mo.failed_limit_up("2024-12-15")
+
+# 2) 连板(N 连板及以上)
+df = mo.consecutive_limit_up("2024-12-15", n=2)
+
+# 3) 行业 / 概念 涨停排行
+mo.sector_limit_up_count("2024-12-15")
+mo.concept_limit_up_count("2024-12-15")
+
+# 4) 综合市场情绪
+mo.market_sentiment("2024-12-15")
+# → {"limit_up_count": 50, "limit_down_count": 5, "failed_limit_up_count": 12,
+#    "zr_ratio": 10.0, "failed_rate": 0.19, "top_sector": "电子",
+#    "top_concept": "AI 算力", "strength": 0.78}
+
+# 5) 近期涨停 / 跌停 / 炸板 趋势
+mo.limit_up_count_series("2024-11-01", "2024-12-15")
+```
+
+**CLI 用法:**
+
+```bash
+python -m baostock_tool.cli market limit_up --date 2024-12-15
+python -m baostock_tool.cli market consecutive --date 2024-12-15 --n 3
+python -m baostock_tool.cli market sector --date 2024-12-15
+python -m baostock_tool.cli market sentiment --date 2024-12-15
+python -m baostock_tool.cli market trend --start 2024-11-01 --end 2024-12-15
+```
+
+**市场情绪 `strength` 评分(0~1):**
+
+| 分量 | 含义 |
+| --- | --- |
+| 涨停数得分 | 涨停越多越强(100 涨停 ≈ 满分) |
+| 炸板率得分 | 炸板率越低越强(0% 满分) |
+| 涨跌停比得分 | 比值越高越强(≥ 5 满分) |
+
+三者等权平均 → `strength`,≥ 0.7 一般视为强势日,< 0.4 视为弱势日。
+
+---
+
+## 实盘模拟器
+
+**把策略接到"准实时"信号** — 每天跑一次生成推荐,跟踪虚拟持仓,状态持久化,可选 webhook 推送。
+
+**Python 用法:**
+
+```python
+from baostock_tool import paper_trader as ptr
+
+trader = ptr.PaperTrader(
+    strategies={
+        "sh.600000": "ma_cross",
+        "sh.510300": "ma_cross",
+        "sh.601318": "rsi_oversold",
+    },
+    params={
+        "sh.600000": {"short": 5, "long": 20},
+        "sh.601318": {"n": 14, "buy": 30, "sell": 70},
+    },
+    initial_cash=200_000,
+    state_path="./paper_state.json",   # 进程重启不丢
+    log_path="./paper_trader.log",
+    position_size_pct=0.95,             # 单次用 95% 现金
+)
+
+# 每天跑一次
+report = trader.run_once(date="2024-12-15")
+print(report.summary())
+print(report.signals_df())             # 哪些股触发了买卖
+trader.save_state()
+```
+
+**CLI 用法:**
+
+```bash
+python -m baostock_tool.cli paper sh.600000,sh.510300 \
+    --strategy ma_cross --params '{"short":5,"long":20}' \
+    --cash 200000 --date 2024-12-15 --state ./paper_state.json
+```
+
+**适合接入 cron 定时任务:**
+
+```cron
+# 每天 15:30 跑一次(收盘后)
+30 15 * * 1-5 cd /path/to/project && python -m baostock_tool.cli paper sh.600000 --date $(date +\%Y-\%m-\%d) >> ./paper.log
+```
+
+**webhook 推送:** 传 `--webhook https://oapi.dingtalk.com/robot/send?access_token=xxx` 可在信号触发时 POST 通知(请求体格式:`{date, total_equity, signals: [{code, signal, shares, ...}]}`)。
+
+---
+
+## Web 看板 (Streamlit)
+
+不想用 CLI / 写脚本?直接 `streamlit run` 起一个 Web UI。**9 个页面** 把 18 个模块的核心功能搬到浏览器里,鼠标点点就能跑。
+
+### 安装
+
+```bash
+# 装 dashboard 额外依赖(streamlit)
+pip install "baostock-tool[dashboard]"
+# 或一次全装
+pip install "baostock-tool[all]"
+```
+
+### 启动(3 种方式任选)
+
+```bash
+# 方式 1:推荐 — 装好后直接用脚本入口
+baostock-tool-dashboard
+
+# 方式 2:streamlit 标准用法
+streamlit run -m baostock_tool.dashboard.app
+
+# 方式 3:用 python -m 调起来
+python -m streamlit run baostock_tool/dashboard/app.py
+```
+
+启动后浏览器打开 **http://localhost:8501**,默认会自动开。
+
+### 自定义启动参数
+
+```bash
+# 指定端口 / 不自动开浏览器 / 主题
+streamlit run baostock_tool/dashboard/app.py \
+    --server.port 8888 \
+    --server.headless true \
+    --theme.base dark
+```
+
+### 键盘快捷键(在 dashboard 里)
+
+| 键 | 作用 |
+| --- | --- |
+| `R` | 重跑当前页面(重新执行脚本) |
+| `C` | 弹 "Manage cache" 菜单,可清缓存 |
+| `?` | 显示快捷键帮助 |
+| `Ctrl+C`(终端) | 关闭 streamlit 服务 |
+
+### 页面清单(左侧栏)
+
+| # | 页面 | 主要能力 |
+| --- | --- | --- |
+| 🏠 | **首页** | 快速入口 + 模块清单 + 启动状态 |
+| 📈 | K 线 + 指标 | 选股 → 拉 K 线 → 加 16 类技术指标 + 12 种形态 |
+| 🔍 | 选股 | 16 个内置模板 + 自定义条件(PE/PB/涨幅/换手/量能) |
+| 🎯 | 回测 | 8 套策略 + 自定义参数 + 风险指标 + 出图 |
+| 🕸️ | 网格复盘 | T+0/T+1 + 手动/自动区间 + 止损止盈 + 网格效率 |
+| 🧩 | 多策略融合 + 稳健性 | weighted/majority/veto 投票 + 滚动稳健性评分 |
+| 💰 | 智能定投 | 4 策略(lump_sum/pure/dip_buy/smart)对比 |
+| 📡 | 资金流 / 涨跌停 | 北向 + 个股资金流 + 涨停池 + 行业&概念排行 |
+| 📊 | 实盘模拟 | 多股多策略 + 状态持久化 + 历史回看 |
+
+### 9 个页面逐个使用说明
+
+下面按页面顺序,每个说清:**输入什么 / 点哪里 / 看到什么**。
+
+#### 🏠 1. 首页(自动出现,不用点)
+
+启动 dashboard 后第一眼看到的就是它:
+- 顶部两个绿条:`✅ baostock 已登录` + `✅ akshare 已装(资金流/涨跌停可用)`
+- 8 个快速入口卡片(每个带一句话简介)
+- 模块清单表格(18 个模块一行一行)
+- "关于本看板"折叠区
+
+**典型操作:** 啥也不点,直接左侧栏选要去的功能。
+
+#### 📈 2. K 线 + 指标
+
+```
+┌─────────────────────────────────────────────────┐
+│ [股票: sh.600000            ]  [频率: d▾]  [复权: 前复权▾] │
+│ [时间区间: 1y ▾]                                   │
+│ ──────── 技术指标 ─────────                        │
+│ ☑ ma ☑ macd ☑ kdj ☑ rsi ☑ boll                    │
+│ ☐ atr ☐ cci ☐ obv ☐ returns ...                    │
+│ [📊 加指标 + 画图]                                 │
+│                                                  │
+│ [图:价格 + MA + MACD / RSI]                       │
+│ ──────── K 线形态识别 ─────────                    │
+│ ☑ morning_star ☑ engulfing_bullish ...            │
+│ [🔍 识别形态]                                      │
+└─────────────────────────────────────────────────┘
+```
+
+- 输入:股票代码/中文名 + 频率(d/w/m/分钟) + 复权方式 + 时间区间
+- 勾选要加的指标(默认勾了 5 个常用)
+- 点 **📊 加指标 + 画图** → 上面出价格+MA+BOLL 副图,下面出 MACD 或 RSI
+- 勾选要识别的形态(可多选) → 点 **🔍 识别形态** → 出命中日期表
+- 展开 "📋 看带指标的完整数据" / "下载 CSV"
+
+#### 🔍 3. 选股
+
+**上半部:模板选股**
+- 选模板(如 `macd_golden` / `low_pe_high_turnover`)→ 选日期 → 选回看天数 → 选最多选几只
+- 点 **🚀 跑选股** → 出命中的股票表(代码/收盘/PE 等)
+- **下载 CSV** 直接存
+
+**下半部:自定义条件**
+- 多选内置条件(MA/MACD/KDJ/RSI/BOLL/量能/形态)→ 自动 AND
+- 展开 "加量化条件" 选 PE/PB/涨跌幅 区间
+- 点 **🎯 跑自定义选股** → 出表
+
+#### 🎯 4. 回测
+
+- 输入股票 + 选 8 套策略之一 + 时间区间
+- 展开 **⚙️ 高级参数** 改:初始资金 / 手续费 / 滑点 / 止损 / 止盈 / 策略参数 JSON
+- 点 **🚀 跑回测** → 顶部 5 个 metric 卡(总收益/年化/夏普/最大回撤/胜率)
+- 下面两图:权益曲线 + 回撤
+- 展开看完整指标表 + 交易明细 + 下载 CSV
+
+#### 🕸️ 5. 网格复盘
+
+- 输入股票(ETF 走 T+0 自动,股票走 T+1) + 模式(等比/等差)
+- 网格区间:二选一
+  - **手动**:填 lower/upper 价格
+  - **自动**:填 lower_pct/upper_pct(0.85 / 1.15)+ lookback
+- 网格数 + 每格股数 + 底仓 + 交易制度(auto/强制 T+0/强制 T+1)
+- 展开 **⚙️ 风控** 改止损止盈 + 初始资金
+- 点 **🚀 跑网格回测** → 5 个 metric 卡 + 价格+网格线+买卖点 + 资金曲线+持仓副图
+- 展开看网格效率 + 交易明细 + 下载 CSV
+
+#### 🧩 6. 多策略融合 + 稳健性(双 Tab)
+
+**Tab 1: 多策略融合**
+- 选股票 + 投票模式(weighted / majority / veto)
+- 多选要融合的策略(默认 4 套)
+- weighted 模式下可以给每套策略一个权重
+- majority/veto 模式下要选最少同意数
+- 点 **🚀 跑融合** → 4 个 metric + 权益曲线
+
+**Tab 2: 滚动稳健性**
+- 选股票 + 策略 + 窗口大小(默认 252 交易日)+ 步长(默认 63)
+- 改策略参数 JSON(留空用默认)
+- 点 **🚀 跑稳健性** → summary 表 + **4 个稳健性评分卡**(盈利 fold 占比 / 夏普稳定性 / 回撤温和度 / 总评分)
+- 下面出各 fold 明细 + 下载 CSV
+
+#### 💰 7. 智能定投
+
+- 选股票(建议 ETF/宽基)+ 时间区间(默认 3 年)
+- 每期投入(默认 2000 元)+ 频率(月/双周/周)
+- 勾 **跑 4 策略对比**(默认勾上)就一键对比 lump_sum / pure / dip_buy / smart
+- 不勾选 → 单策略模式,选具体策略
+- 展开 **⚙️ 智能加仓参数** 改均线窗口(smart 用)/ 跌幅阈值(dip_buy 用)
+- 点 **🚀 跑 4 策略对比** → 4 行对比表 + 4 策略市值曲线对比图
+
+#### 📡 8. 资金流 / 涨跌停(需 akshare)
+
+**Tab 1: 个股资金流**
+- 输股票 → 自动拉近 60 个交易日 → 出表 + 下载 CSV
+
+**Tab 2: 北向资金**
+- 点 **🔄 刷新** → 拉沪股通/深股通/港股通当日数据
+
+**Tab 3: 当日涨停股池**
+- 选日期 → 点 🔄 刷新 → 出涨停股明细 + 下载 CSV
+
+**Tab 4: 题材/连板**
+- 选日期 → 出行业涨停排行 + 概念涨停排行 + **4 个市场情绪 metric**(涨停数/跌停数/炸板率/强弱打分)
+
+#### 📊 9. 实盘模拟
+
+- 输股票代码(逗号分隔)+ 选共用策略 + 初始资金 + 单次用 % 资金
+- 选运行日期(默认今天)
+- 填状态文件路径(默认 `./paper_state.json`)+ 可选 webhook URL
+- 点 **🚀 跑一次模拟** → 4 个 metric(总权益/盈亏比/持仓数/信号数)
+- 下面分别展示:**今日信号**(signal≠0 的) / **当前持仓**(shares>0 的)
+- 展开看运行日志 + 下载状态文件 JSON
+- 跑多次后底部自动出 "历史运行" 区(从状态文件读)
+
+
+### 设计要点
+
+- **缓存:** K 线 1 小时 / 资金流 5 分钟 / 元信息 1 天(`@st.cache_data`),多次点点不会重复拉
+- **数据流:** Dashboard 底层全部调 `baostock_tool.*`,**和 CLI 100% 等价** — 你在浏览器里点的每一下,等价于一条 CLI 命令
+- **依赖:** 必需 `streamlit`;`akshare` 是 `pages/8_market_fund.py` 的可选依赖
+- **加新页面:** 在 `baostock_tool/dashboard/pages/` 加 `NN_xxx.py` 即可,Streamlit 自动发现并加到左侧栏
+
+### 远程访问 / 部署
+
+```bash
+# 监听所有网卡
+streamlit run baostock_tool/dashboard/app.py --server.address 0.0.0.0 --server.port 8501
+
+# 部署到服务器后用 nginx 反向代理 + basic auth 即可
+```
+
+⚠️ 公开部署时注意:Streamlit 自带无认证,务必加反向代理鉴权(nginx basic_auth / Authelia / oauth2-proxy),或用 `streamlit-authenticator` 包。
+
+### 故障排查
+
+| 症状 | 原因 / 修法 |
+| --- | --- |
+| 启动后页面空白 | 检查 `~/.streamlit` 目录权限 |
+| `ModuleNotFoundError: No module named 'streamlit'` | 没装 dashboard 额外依赖,`pip install "baostock-tool[dashboard]"` |
+| 资金流页报错 | `pip install akshare` 后重启 |
+| 中文乱码(matplotlib 图) | Linux 设 `LANG=zh_CN.UTF-8`;Win 用 Windows Terminal / Git Bash |
+| 端口占用 | `--server.port 8888` 换一个 |
+| 缓存陈旧 | dashboard 里按 `C` 选 "Clear cache" |
+
+### 卸载
+
+`streamlit` / `baostock-tool-dashboard` 脚本来自 `pip install` — 卸 `baostock-tool` 即可清掉:
+
+```bash
+pip uninstall baostock-tool
+```
+
+---
 
 ## 数据缓存
 
@@ -340,45 +1145,72 @@ score = ptn.pattern_score(df, bullish=True)  # ≥ 2 可视为较强信号
 # 默认开启,数据存在 .cache/kline/ 下;第二次同参数秒回
 df = data.get_kline("sh.600000", "2024-01-01", "2025-12-31", use_cache=True)
 
-# 强制刷新
+# 强制刷新(覆盖本地)
 df = data.get_kline("sh.600000", "2024-01-01", "2025-12-31", refresh=True)
 
-# 管理
-print(data.kline_cache_info())  # 文件数 / 占用
-n = data.clear_kline_cache()     # 清空
+# 缓存统计 / 清空
+print(data.kline_cache_info())     # 文件数 / 占用
+n = data.clear_kline_cache()       # 清空
 ```
 
-## 目录结构
+缓存按 `code × freq × adjustflag` 切分,写缓存时会用拉取到的实际区间,**便于后续更小窗口的 start/end 切片直接命中**。
+
+---
+
+## 项目结构
 
 ```
-baostock_tool/
-  __init__.py        # 统一导出
-  client.py          # baostock 登录管理(单例 + 上下文)
-  data.py            # 数据获取(K线/财报/估值/分红/复权因子/行业/成分股/宏观)
-  data_cache.py      # 本地 K 线缓存层
-  indicators.py      # 技术指标(MA/MACD/KDJ/RSI/BOLL/ATR/CCI/OBV/DMI/Williams/ROC/MFI/TRIX/SAR/BIAS)
-  patterns.py        # K 线形态识别
-  screener.py        # 选股器(技术+形态+量价)
-  strategy.py        # 策略库
-  backtest.py        # 回测引擎(风险指标)
-  position.py        # 仓位管理(Kelly/波动率目标/固定风险/回撤风控)
-  optimizer.py       # 网格搜索 + Walk-Forward
-  portfolio.py       # 组合回测(等权/风险平价/多空/信号驱动)
-  quant.py           # 量化分析(IC/分层/归因/Regime)
-  predict.py         # ML 预测(集成/特征选择/横截面打分/可选 XGB/LGBM)
-  report.py          # 报告与可视化(jinja2 HTML)
-  cli.py             # 命令行入口(17 个子命令)
-  utils.py           # 工具函数
-examples/
-  01_quickstart.py
-  02_backtest.py
-  03_screen_and_quant.py
-  04_ml_predict.py
-  05_risk_and_walkforward.py  # 风险指标 + Walk-Forward
-  06_portfolio_rotation.py    # 组合回测 + 风险平价
-tests/               # 离线单元测试(不联网)
-output/              # 报告 / 图表输出目录
+baostock-tool/
+├── pyproject.toml
+├── README.md                       # 本文件
+├── baostock_tool/
+│   ├── __init__.py                 # 统一导出
+│   ├── client.py                   # baostock 登录管理(单例 + 上下文)
+│   ├── data.py                     # 数据获取(K线/财报/估值/分红/复权因子/行业/成分股/宏观)
+│   ├── data_cache.py               # 本地 K 线 CSV 缓存
+│   ├── indicators.py               # 技术指标(MA/MACD/KDJ/RSI/BOLL/ATR/CCI/OBV/DMI/Williams/ROC/MFI/TRIX/SAR/BIAS)
+│   ├── patterns.py                 # K 线形态识别
+│   ├── screener.py                 # 选股器(16 个模板 + 自定义条件)
+│   ├── strategy.py                 # 策略库(8 套经典)
+│   ├── backtest.py                 # 事件驱动回测引擎(全套风险指标)
+│   ├── position.py                 # 仓位管理(Kelly/波动率目标/固定风险/回撤风控)
+│   ├── optimizer.py                # 网格搜索 + Walk-Forward
+│   ├── portfolio.py                # 组合回测(等权/风险平价/多空/信号驱动)
+│   ├── quant.py                    # 量化分析(IC/分层/归因/Regime)
+│   ├── predict.py                  # ML 预测(集成/特征选择/横截面打分/可选 XGB/LGBM)
+│   ├── report.py                   # 报告与可视化(jinja2 HTML)
+│   ├── grid_backtest.py            # 网格交易回测(T+0/T+1 / 涨跌停 / 整百 / 止损止盈)
+│   ├── pairs_trading.py            # 配对交易(选对 / 价差 / z-score 回测)
+│   ├── fund_flow.py                # 资金流 / 北向资金 / 龙虎榜(akshare 集成)
+│   ├── dca.py                      # 智能定投(pure / smart / dip_buy / lump_sum)
+│   ├── market_overview.py          # 涨跌停统计 / 题材热度(akshare 集成)
+│   ├── paper_trader.py             # 实盘模拟器(状态持久化 / 日报 / webhook)
+│   ├── dashboard/                  # Streamlit Web 看板(9 页面)
+│   │   ├── app.py                  # 入口 + 首页
+│   │   ├── utils.py                # 缓存 + 通用 UI
+│   │   └── pages/2_kline.py ... 9_paper.py
+│   ├── cli.py                      # 命令行入口(24 个子命令)
+│   └── utils.py                    # 工具函数
+├── examples/
+│   ├── 01_quickstart.py
+│   ├── 02_backtest.py
+│   ├── 03_screen_and_quant.py
+│   ├── 04_ml_predict.py
+│   ├── 05_risk_and_walkforward.py  # 风险指标 + Walk-Forward
+│   ├── 06_portfolio_rotation.py    # 组合回测 + 风险平价
+│   ├── 07_grid_backtest.py         # 网格交易复盘(手动/自动区间 + 风控 + T+0)
+│   ├── 08_pairs_trading.py         # 配对交易
+│   ├── 09_strategy_ensemble.py     # 多策略融合(投票/加权)
+│   ├── 10_robustness.py            # 滚动稳健性测试
+│   └── 11_fund_flow.py             # 资金流 / 北向 / 龙虎榜
+│   ├── 12_dca.py                   # 智能定投(纯 / 智能 / 跌多 / 一次性 对比)
+│   ├── 13_market_overview.py       # 涨跌停 / 连板 / 题材热度 / 市场情绪
+│   └── 14_paper_trader.py          # 实盘模拟器(多股多策略 / 状态持久化)
+├── scripts/                        # 可选的 README 同步 hook 安装脚本
+└── tests/                          # 离线单元测试(不联网,150+ 用例)
 ```
+
+---
 
 ## 测试
 
@@ -386,15 +1218,106 @@ output/              # 报告 / 图表输出目录
 pytest tests/ -v
 ```
 
-59 个离线单元测试,覆盖指标、形态、风险指标、仓位、缓存、组合、优化、预测特征工程等,**不依赖网络**。
+> `tests/` 是**离线单元测试**(`pytest>=7`),覆盖指标、形态、风险指标、仓位、缓存、组合、优化、预测特征工程、网格回测(含 T+0/T+1)、配对、多策略融合、滚动稳健性、资金流(akshare mock)、DCA、市场情绪(akshare mock)、实盘模拟器等,**不依赖 baostock 网络**。
+
+---
+
+## 跨平台说明
+
+`baostock_tool` 在 **Linux / macOS / Windows** 上都能开箱即用:
+
+| 平台 | 状态 | 备注 |
+| --- | :---: | --- |
+| **Linux** (Ubuntu / Debian / CentOS / Arch) | ✅ | 主要开发/测试平台,所有功能验证通过 |
+| **macOS** (Intel / Apple Silicon) | ✅ | 纯 Python + 跨平台依赖,无任何 Unix 特定调用 |
+| **Windows 10/11** (CMD / PowerShell) | ✅ | 项目代码本身无 Windows 限制;若要装 README 同步 hook,用 PowerShell 脚本 |
+
+**Python 版本要求:** ≥ 3.9(`pyproject.toml` 的 `requires-python`,因为 `matplotlib>=3.6` + `scikit-learn>=1.2` 都需要)
+
+**核心依赖全部跨平台:**
+`baostock / pandas / numpy / matplotlib / scipy / scikit-learn / tqdm / tabulate / jinja2 / requests` — 均提供 Windows / macOS / Linux 的 wheel,`pip install` 直装无编译。
+
+**代码层面已避开的平台坑:**
+- ✅ 路径处理全部用 `os.path.join`(23 处),无 `os.sep` / 硬编码 `/` / `\\`
+- ✅ 文件 I/O 全部 `encoding="utf-8"`(8 处)
+- ✅ 无 `subprocess` / `os.system` / `shell=True` 调用
+- ✅ 无 `readline` / `curses` / `termios`(纯 Unix)依赖
+- ✅ 缓存文件名用 `code.replace(".", "_")` 纯 ASCII,避免 Windows 老编码坑
+- ✅ `PaperTrader.state_path` 等用户输入路径,跨平台一致
+
+**已知小坑(不影响使用):**
+- `matplotlib` 在 Windows 老的 cmd 下,中文标签可能显示成方块 — 用 **Windows Terminal** 或 **Git Bash** 即可
+- `tqdm` 进度条在 cmd 下偶有字符宽度问题 — 同上换终端
+- `baostock` 在极少数 Windows 网络环境下登录失败 — 通常是代理/防火墙,项目代码无问题
+- `scripts/install_readme_sync_hook.sh` 是 bash 脚本 — Windows 用户**改用** `scripts/install_readme_sync_hook.ps1`:
+
+```powershell
+# Windows PowerShell(任选其一)
+.\scripts\install_readme_sync_hook.ps1
+# 或
+powershell -ExecutionPolicy Bypass -File scripts\install_readme_sync_hook.ps1
+```
+
+**装好后 Git Bash 用户也能跑**:
+```bash
+bash scripts/install_readme_sync_hook.sh
+```
+
+---
+
+## 维护本指南
+
+> 📌 **本节是给项目维护者看的**:当源码 / CLI / API 变更时,请同步更新对应的章节,避免文档与代码漂移。
+
+| 项目结构 / API 变化 | 同步本指南的位置 |
+| --- | --- |
+| 新增 / 删除 `baostock_tool/*.py` 子模块 | [项目结构](#项目结构) + [功能概览](#功能概览) + 顶部 TOC |
+| `screener.SCREEN_TEMPLATES` 增删模板 | [选股模板](#选股模板) 表格 |
+| `cli.py` 的子命令 / 参数 / `choices` | [CLI 速查](#cli-速查) + 顶部"24 个子命令"计数 |
+| `cli.py cmd_screen` 的 `choices` 与 `SCREEN_TEMPLATES` 不一致 | [选股模板](#选股模板) 表格中的"CLI `screen`" 列 |
+| `strategy.STRATEGIES` 新增策略 | [功能概览](#功能概览) 的 `strategy` 行 + [5 分钟上手](#5-分钟上手) |
+| `predict.AVAILABLE_MODELS` 变化 | [ML 预测](#ml-预测) 末段 |
+| `BacktestConfig` / `BacktestResult` 新增字段 | [功能概览](#功能概览) 的 `backtest` 行 + [5 分钟上手](#5-分钟上手) 输出 |
+| `grid_backtest.GridConfig` 增删字段 / `run()` 参数变化 | [网格交易回测](#网格交易回测) 表格 + 章节示例 |
+| `grid_backtest.detect_price_limit` / `detect_t0` 规则变化 | [网格交易回测](#网格交易回测) "支持的交易制度与涨跌幅"表 |
+| 仓库版本号(`__version__` / `pyproject.toml`) | 顶部徽标附近的版本说明(如有) |
+| `pyproject.toml` 新增/删除依赖 | [跨平台说明](#跨平台说明) + [安装](#安装) |
+| `tests/` 用例数变化 | [测试](#测试) 段的"离线单元测试"行 |
+
+**项目根目录提供了一键审计脚本**(可选,见 `.claude/commands` 配置),你也可以直接跑:
+
+```bash
+# 列出当前 CLI 子命令实际数量
+python -c "import ast,pathlib; t=ast.parse(pathlib.Path('baostock_tool/cli.py').read_text()); print(sum(isinstance(n,ast.FunctionDef) and n.name.value=='add_parser' for n in ast.walk(t)))"
+
+# 列出 SCREEN_TEMPLATES 全部键
+python -c "from baostock_tool.screener import SCREEN_TEMPLATES; print(list(SCREEN_TEMPLATES))"
+```
+
+> **持续同步:** 仓库自带一个轻量级 hook 检测脚本 `scripts/check_readme_sync.py`,可被三种方式调用:
+>
+> | 接入方式 | 一行安装 | 触发时机 |
+> | --- | --- | --- |
+> | Claude Code `PostToolUse` hook | `bash scripts/install_readme_sync_hook.sh` | 编辑源码 / 配置时由 Claude 自动跑 |
+> | Git `pre-commit` hook | 同上(同一脚本会一并安装) | `git commit` 时自检 |
+> | 手动 / CI | `python3 scripts/check_readme_sync.py <file>` | 任意时机 |
+>
+> 安装脚本会写入 `.claude/settings.json` 和 `.git/hooks/pre-commit`;若已存在不会覆盖。卸载只需删除对应条目。
+>
+> 如果你看到提示但本指南不需要更新,可以直接忽略;反过来,如果指南陈旧而 hook 没触发,手动对照上表逐项检查即可。
+
+---
 
 ## 注意事项
 
-- baostock 接口偶有波动,批量查询时已内置 `try/except` 容错,失败单只股票不影响整体
-- 实时行情 baostock 已停用,本工具专注日 / 周 / 月 / 分钟级历史数据
-- 真实交易前请用本工具的 `BacktestEngine` 充分回测,谨慎设定止损
-- 本地缓存路径默认 `.cache/kline`,可加到 `.gitignore`;`--refresh` 强制刷新
-- ML 模块对 sklearn 版本敏感,1.2+ 推荐;XGBoost / LightGBM 为可选,缺失自动回退
+- **baostock 接口偶有波动**,批量查询时已内置 `try/except` 容错,单只股票失败不会影响整体。
+- **实时行情 baostock 已停用**,本工具专注日 / 周 / 月 / 分钟级历史数据。
+- **真实交易前请用本工具的 `BacktestEngine` 充分回测**,并谨慎设定止损 / 止盈;回测不等同于实盘,**滑点 / 成交价 / 涨跌停** 都有简化。
+- **本地缓存**默认在 `.cache/kline/`,建议加到 `.gitignore`;`--refresh` 强制刷新。
+- **ML 模块**对 sklearn 版本敏感,**1.2+ 推荐**;XGBoost / LightGBM 为可选依赖,缺失自动回退到 sklearn GBDT。
+- **依赖 Python 3.9+**(matplotlib>=3.6 + scikit-learn>=1.2 都需要)。
+
+---
 
 ## License
 

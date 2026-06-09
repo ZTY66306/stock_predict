@@ -1,2 +1,3 @@
 [console_scripts]
 baostock-tool = baostock_tool.cli:main
+baostock-tool-dashboard = baostock_tool.dashboard.app:main
