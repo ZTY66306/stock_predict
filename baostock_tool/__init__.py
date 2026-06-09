@@ -16,7 +16,12 @@
     predict    - 机器学习预测(可选 XGBoost/LightGBM)
     report     - 可视化与报告
     utils      - 工具函数
-    grid_backtest - 网格交易回测(A 股 T+1 / 整百 / 涨跌停)
+    grid_backtest - 网格交易回测(A 股 T+0 / T+1 / 涨跌停 / 整百)
+    pairs_trading  - 配对交易(协整 / 价差 / z-score 回测)
+    fund_flow  - 资金流 / 北向资金 / 龙虎榜(akshare 集成)
+    dca       - 智能定投(纯 / 均线偏离 / 跌多加仓 / 一次性对比)
+    market_overview - 涨跌停统计 / 题材热度(akshare 集成)
+    paper_trader  - 实盘模拟器(状态持久化 / 日报 / webhook)
 """
 from __future__ import annotations
 
@@ -27,6 +32,7 @@ from . import (
     client, data, data_cache, indicators, patterns, strategy,
     backtest, position, optimizer, screener, portfolio,
     quant, predict, report, utils, grid_backtest,
+    pairs_trading, fund_flow, dca, market_overview, paper_trader,
 )
 
 # 顶层便捷符号
@@ -36,22 +42,24 @@ from .predict import (
 )
 from .patterns import list_patterns
 from .position import kelly_fraction, volatility_target, fixed_fractional
-from .optimizer import WalkForwardOptimizer, grid_search
+from .optimizer import WalkForwardOptimizer, grid_search, RollingRobustness
 from .portfolio import Portfolio, long_short_backtest, risk_parity_weights
 from .screener import SCREEN_TEMPLATES
+from .strategy import EnsembleStrategy
 from . import grid_backtest as _grid
 
 __all__ = [
     "client", "data", "data_cache", "indicators", "patterns", "strategy",
     "backtest", "position", "optimizer", "screener", "portfolio",
     "quant", "predict", "report", "utils", "grid_backtest",
+    "pairs_trading", "fund_flow", "dca", "market_overview", "paper_trader",
     "AVAILABLE_MODELS", "StackingEnsemble", "WalkForwardML",
     "select_features", "cross_sectional_score",
     "list_patterns",
     "kelly_fraction", "volatility_target", "fixed_fractional",
-    "WalkForwardOptimizer", "grid_search",
+    "WalkForwardOptimizer", "grid_search", "RollingRobustness",
     "Portfolio", "long_short_backtest", "risk_parity_weights",
-    "SCREEN_TEMPLATES",
+    "SCREEN_TEMPLATES", "EnsembleStrategy",
     "grid_backtest",
     "__version__",
 ]

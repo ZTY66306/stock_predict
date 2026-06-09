@@ -48,6 +48,12 @@ def hint(file_path: str) -> str:
         f"   - `cli.py` 子命令或参数变化 → 更新「CLI 速查」+ 子命令计数\n"
         f"   - `screener.SCREEN_TEMPLATES` 增删模板 → 更新「选股模板」表格\n"
         f"   - `grid_backtest` 参数/规则变化 → 更新「网格交易回测」章节与示例\n"
+        f"   - `pairs_trading` / `EnsembleStrategy` / `RollingRobustness` 变化 → "
+        f"更新对应章节与示例\n"
+        f"   - `fund_flow` / `market_overview` 接口变化 → 更新对应章节\n"
+        f"   - `dca` / `paper_trader` 增删字段 → 更新「智能定投 DCA」/「实盘模拟器」章节\n"
+        f"   - 新增/删除 `baostock_tool/dashboard/pages/*.py` → 更新「Web 看板」页面清单\n"
+        f"   - `pyproject.toml` 新增 `[project.scripts]` 入口 → 更新「Web 看板」+「安装」\n"
         f"   - 其它 API 变化 → 同步对应的示例代码与说明。\n"
     )
 

@@ -20,6 +20,11 @@ import pandas as pd
 from . import client, data, indicators, screener, strategy, backtest, report, predict
 from . import data_cache
 from . import grid_backtest as gb
+from . import pairs_trading as pt
+from . import fund_flow as ff
+from . import dca
+from . import market_overview as mo
+from . import paper_trader as ptr
 from .utils import default_start, today_str
 from .patterns import list_patterns
 
@@ -359,6 +364,233 @@ def cmd_grid(args):
             eff.to_csv(os.path.join(args.report, "grid_efficiency.csv"), index=False)
 
 
+# ============ DCA 智能定投 ============
+
+def cmd_dca(args):
+    """智能定投回测。"""
+    if args.compare:
+        cmp = dca.compare_strategies(args.code, args.start, args.end,
+                                      amount_per_period=args.amount,
+                                      frequency=args.frequency)
+        print("--- 4 种策略对比 ---")
+        print(cmp.to_string(index=False))
+    else:
+        r = dca.dca_backtest(args.code, args.start, args.end,
+                              amount_per_period=args.amount,
+                              frequency=args.frequency,
+                              strategy=args.strategy)
+        print("=" * 60)
+        print(f"DCA  {r.code} {r.name}  strategy={r.strategy}  freq={r.frequency}")
+        print("=" * 60)
+        print(r.summary().to_string())
+        if args.report:
+            import os
+            os.makedirs(args.report, exist_ok=True)
+            dca.write_text_report(r, os.path.join(args.report, "dca_report.txt"))
+            dca.plot(r, save_path=os.path.join(args.report, "dca.png"))
+
+
+# ============ market overview ============
+
+def cmd_market(args):
+    """涨跌停统计 / 题材热度。"""
+    if args.action == "limit_up":
+        df = mo.daily_limit_up(args.date)
+        print(f"--- 当日涨停股池 {args.date} ({len(df)} 只) ---")
+        if not df.empty:
+            print(df.head(args.limit).to_string(index=False))
+    elif args.action == "limit_down":
+        df = mo.daily_limit_down(args.date)
+        print(f"--- 当日跌停股池 {args.date} ({len(df)} 只) ---")
+        if not df.empty:
+            print(df.head(args.limit).to_string(index=False))
+    elif args.action == "consecutive":
+        df = mo.consecutive_limit_up(args.date, n=args.n)
+        print(f"--- {args.n} 连板以上 {args.date} ({len(df)} 只) ---")
+        if not df.empty:
+            print(df.head(args.limit).to_string(index=False))
+    elif args.action == "failed":
+        df = mo.failed_limit_up(args.date)
+        print(f"--- 当日炸板股 {args.date} ({len(df)} 只) ---")
+        if not df.empty:
+            print(df.head(args.limit).to_string(index=False))
+    elif args.action == "sector":
+        df = mo.sector_limit_up_count(args.date)
+        print(f"--- 行业涨停排行 {args.date} ---")
+        if not df.empty:
+            print(df.head(args.limit).to_string(index=False))
+    elif args.action == "concept":
+        df = mo.concept_limit_up_count(args.date)
+        print(f"--- 概念涨停排行 {args.date} ---")
+        if not df.empty:
+            print(df.head(args.limit).to_string(index=False))
+    elif args.action == "sentiment":
+        import json
+        s = mo.market_sentiment(args.date)
+        print(f"--- 市场情绪 {args.date} ---")
+        print(json.dumps(s, ensure_ascii=False, indent=2, default=str))
+    elif args.action == "trend":
+        df = mo.limit_up_count_series(args.start, args.end)
+        print(f"--- 涨停/跌停/炸板 趋势 {args.start} ~ {args.end} ---")
+        if not df.empty:
+            print(df.to_string())
+
+
+# ============ paper trader ============
+
+def cmd_paper(args):
+    """实盘模拟器。"""
+    import json
+    codes = [c.strip() for c in args.codes.split(",") if c.strip()]
+    strategies = {c: args.strategy for c in codes}
+    params = None
+    if args.params:
+        params = {c: json.loads(args.params) for c in codes}
+    trader = ptr.PaperTrader(
+        strategies=strategies, params=params,
+        initial_cash=args.cash,
+        state_path=args.state,
+        webhook_url=args.webhook,
+        log_path=args.log,
+    )
+    report = trader.run_once(date=args.date)
+    print("=" * 60)
+    print(f"Paper Trader  {report.date.date()}")
+    print("=" * 60)
+    print(report.summary().to_string())
+    if report.signals:
+        print("\n--- 推荐信号 ---")
+        for s in report.signals:
+            if s.signal != 0:
+                print(f"  {s.code} {s.name}  signal={s.signal:+d}  "
+                      f"shares={s.shares_to_trade}  reason={s.reason}")
+    trader.save_state()
+    if args.report:
+        ptr.write_text_report(report, args.report)
+
+
+# ============ 配对交易 ============
+
+def cmd_pairs(args):
+    """配对交易回测:选对 → 价差回测。"""
+    from . import data
+    print(f"拉取 {len(args.codes.split(','))} 只股票 K 线...")
+    prices = pd.DataFrame()
+    for c in args.codes.split(","):
+        c = c.strip()
+        if not c:
+            continue
+        df = data.get_kline(c, args.start, args.end)
+        if df.empty:
+            print(f"  [跳过] {c} 无数据")
+            continue
+        prices[c] = df["close"]
+    if prices.shape[1] < 2:
+        print("可用股票少于 2 只,无法配对")
+        return
+    pairs = pt.select_pairs(prices, method=args.method, top_n=args.top_n)
+    print(f"\n选出的配对(共 {len(pairs)} 对):")
+    print(pairs.to_string(index=False))
+    if args.backtest and len(pairs) > 0:
+        row = pairs.iloc[0]
+        a, b = row["code_a"], row["code_b"]
+        print(f"\n回测配对: {a} vs {b}  hedge={row['hedge_ratio']:.4f}")
+        result = pt.pairs_backtest(
+            prices[a], prices[b],
+            entry_z=args.entry_z, exit_z=args.exit_z, lookback=args.lookback,
+            capital=args.cash, t0=args.t0,
+        )
+        print(result.summary().to_string())
+        if args.report:
+            os.makedirs(args.report, exist_ok=True)
+            pt.write_text_report(result, os.path.join(args.report, "pairs_report.txt"))
+            pt.plot(result, save_path=os.path.join(args.report, "pairs.png"))
+
+
+# ============ 多策略融合 ============
+
+def cmd_ensemble(args):
+    """跑多策略融合并回测。"""
+    from . import data, backtest
+    df = data.get_kline(args.code, args.start, args.end)
+    if df.empty:
+        print("无数据")
+        return
+    import json
+    weights = json.loads(args.weights) if args.weights else None
+    ens = strategy.EnsembleStrategy(
+        args.strategies.split(","), weights=weights,
+        voting=args.voting, entry_threshold=args.threshold,
+        majority_min=args.majority_min,
+    )
+    sig = ens.run(df)
+    cfg = backtest.BacktestConfig(initial_cash=args.cash)
+    result = backtest.BacktestEngine(cfg).run(df, sig)
+    print("=" * 50)
+    print(f"Ensemble  {args.code}  voting={args.voting}")
+    print("=" * 50)
+    print(result.summary().to_string())
+    if args.report:
+        os.makedirs(args.report, exist_ok=True)
+        report.plot_equity(result, save_path=os.path.join(args.report, "ensemble_equity.png"))
+
+
+# ============ 滚动稳健性 ============
+
+def cmd_robustness(args):
+    """滚动稳健性测试。"""
+    from . import data, optimizer
+    df = data.get_kline(args.code, args.start, args.end)
+    if df.empty:
+        print("无数据")
+        return
+    import json
+    params = json.loads(args.params) if args.params else {}
+    rr = optimizer.RollingRobustness(
+        args.strategy, params=params,
+        window=args.window, step=args.step,
+    )
+    result = rr.run(df)
+    print("=" * 60)
+    print(f"Rolling Robustness  {args.code}  strategy={args.strategy}")
+    print("=" * 60)
+    print(result.summary().to_string())
+    print("\n稳健性评分(0~1,越大越稳健):")
+    print(result.robustness_score())
+    if args.report:
+        os.makedirs(args.report, exist_ok=True)
+        fdf = result.folds_df()
+        if not fdf.empty:
+            fdf.to_csv(os.path.join(args.report, "robustness_folds.csv"), index=False)
+
+
+# ============ 资金流 / 北向 / 龙虎榜 ============
+
+def cmd_fundflow(args):
+    """资金流 / 北向 / 龙虎榜查询。"""
+    if args.kind == "individual":
+        df = ff.get_fund_flow(args.code, args.start, args.end)
+        if df.empty:
+            print("无资金流数据(可能 akshare 不可用或网络问题)")
+            return
+        print(f"--- 个股资金流 {args.code} ---")
+        print(df.head(args.limit).to_string(index=False))
+    elif args.kind == "northbound":
+        df = ff.get_northbound()
+        print("--- 北向资金汇总 ---")
+        print(df.to_string(index=False))
+    elif args.kind == "longhubang":
+        df = ff.get_longhubang(args.start.replace("-", ""), args.end.replace("-", ""))
+        print(f"--- 龙虎榜 {args.start} ~ {args.end} ({len(df)} 条) ---")
+        if not df.empty:
+            print(df.head(args.limit).to_string(index=False))
+    elif args.kind == "sector":
+        df = ff.get_sector_fund_flow(indicator=args.indicator, sector_type=args.sector_type)
+        print(f"--- 板块资金流(行业,今日,前 {args.limit}) ---")
+        if not df.empty:
+            print(df.head(args.limit).to_string(index=False))
+
+
 # 解析器
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="baostock_tool", description="baostock 综合工具")
@@ -512,6 +744,107 @@ def build_parser() -> argparse.ArgumentParser:
                          "true=强制 T+0 / false=强制 T+1")
     sp.add_argument("--report", help="报告输出目录(同时输出图表与 CSV)")
     sp.set_defaults(func=cmd_grid)
+
+    sp = sub.add_parser("pairs", help="配对交易(协整/相关选对 + 价差回测)")
+    sp.add_argument("codes", help="逗号分隔的股票代码列表,至少 2 只")
+    sp.add_argument("--start", default=default_start(365 * 2))
+    sp.add_argument("--end", default=today_str())
+    sp.add_argument("--method", choices=["correlation", "cointest", "distance"],
+                    default="cointest")
+    sp.add_argument("--top-n", type=int, default=5)
+    sp.add_argument("--backtest", action="store_true", help="对第一对跑回测")
+    sp.add_argument("--entry-z", type=float, default=2.0)
+    sp.add_argument("--exit-z", type=float, default=0.5)
+    sp.add_argument("--lookback", type=int, default=60)
+    sp.add_argument("--cash", type=float, default=100_000)
+    sp.add_argument("--t0", action="store_true",
+                    help="T+0 模式(用 ETF/可转债配对时可开)")
+    sp.add_argument("--report", help="报告输出目录")
+    sp.set_defaults(func=cmd_pairs)
+
+    sp = sub.add_parser("ensemble", help="多策略融合(投票/加权)")
+    sp.add_argument("code", help="股票代码")
+    sp.add_argument("--strategies", default="ma_cross,macd,kdj,rsi_oversold",
+                    help="逗号分隔的策略名")
+    sp.add_argument("--weights", help="权重 JSON,如 '[0.4,0.3,0.2,0.1]'")
+    sp.add_argument("--voting", choices=["weighted", "majority", "veto"],
+                    default="weighted")
+    sp.add_argument("--threshold", type=float, default=0.3,
+                    help="weighted 模式的入场阈值")
+    sp.add_argument("--majority-min", type=int, default=2,
+                    help="majority/veto 模式的最少同意数")
+    sp.add_argument("--start", default=default_start(365 * 2))
+    sp.add_argument("--end", default=today_str())
+    sp.add_argument("--cash", type=float, default=100_000)
+    sp.add_argument("--report", help="报告输出目录")
+    sp.set_defaults(func=cmd_ensemble)
+
+    sp = sub.add_parser("robustness", help="滚动稳健性测试")
+    sp.add_argument("code", help="股票代码")
+    sp.add_argument("--strategy", default="ma_cross")
+    sp.add_argument("--params", help="策略参数 JSON,如 '{\"short\":5,\"long\":20}'")
+    sp.add_argument("--window", type=int, default=252)
+    sp.add_argument("--step", type=int, default=63)
+    sp.add_argument("--start", default=default_start(365 * 3))
+    sp.add_argument("--end", default=today_str())
+    sp.add_argument("--report", help="报告输出目录")
+    sp.set_defaults(func=cmd_robustness)
+
+    sp = sub.add_parser("fundflow", help="资金流 / 北向 / 龙虎榜(需 akshare)")
+    sp.add_argument("kind", choices=["individual", "northbound", "longhubang", "sector"])
+    sp.add_argument("--code", default="", help="个股资金流时必填,形如 sh.600000")
+    sp.add_argument("--start", default=default_start(30))
+    sp.add_argument("--end", default=today_str())
+    sp.add_argument("--limit", type=int, default=20)
+    sp.add_argument("--indicator", default="今日",
+                    choices=["今日", "3日", "5日", "10日"])
+    sp.add_argument("--sector-type", default="行业资金流",
+                    dest="sector_type",
+                    choices=["行业资金流", "概念资金流", "地域资金流"])
+    sp.set_defaults(func=cmd_fundflow)
+
+    # ----- DCA 智能定投 -----
+    sp = sub.add_parser("dca", help="智能定投回测(pure / smart / dip_buy / lump_sum)")
+    sp.add_argument("code", help="股票代码")
+    sp.add_argument("--start", default=default_start(365 * 3))
+    sp.add_argument("--end", default=today_str())
+    sp.add_argument("--amount", type=float, default=2000,
+                    help="每期投入金额(默认 2000)")
+    sp.add_argument("--frequency", choices=["weekly", "biweekly", "monthly"],
+                    default="monthly")
+    sp.add_argument("--strategy", choices=["lump_sum", "pure", "dip_buy", "smart"],
+                    default="pure")
+    sp.add_argument("--compare", action="store_true",
+                    help="横向对比 4 种策略")
+    sp.add_argument("--report", help="报告输出目录")
+    sp.set_defaults(func=cmd_dca)
+
+    # ----- market overview -----
+    sp = sub.add_parser("market", help="涨跌停统计 / 题材热度(需 akshare)")
+    sp.add_argument("action", choices=["limit_up", "limit_down", "consecutive",
+                                          "failed", "sector", "concept", "sentiment",
+                                          "trend"])
+    sp.add_argument("--date", default=today_str())
+    sp.add_argument("--start", default=default_start(30))
+    sp.add_argument("--end", default=today_str())
+    sp.add_argument("--n", type=int, default=2, help="连板数(>= N)")
+    sp.add_argument("--limit", type=int, default=20)
+    sp.set_defaults(func=cmd_market)
+
+    # ----- paper trader -----
+    sp = sub.add_parser("paper", help="实盘模拟器(把策略接到每日信号)")
+    sp.add_argument("codes", help="股票代码,逗号分隔")
+    sp.add_argument("--strategy", default="ma_cross",
+                    help="所有股票共用此策略")
+    sp.add_argument("--params", help="策略参数 JSON")
+    sp.add_argument("--cash", type=float, default=100_000)
+    sp.add_argument("--date", default=today_str())
+    sp.add_argument("--state", default="./paper_state.json",
+                    help="状态持久化文件")
+    sp.add_argument("--webhook", help="信号 webhook URL(可选)")
+    sp.add_argument("--log", help="日志文件路径(可选)")
+    sp.add_argument("--report", help="日报输出文件(可选)")
+    sp.set_defaults(func=cmd_paper)
 
     return p
 

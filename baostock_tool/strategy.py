@@ -7,8 +7,9 @@
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Literal, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -208,3 +209,97 @@ def run_strategy(name: str, df: pd.DataFrame, params: Optional[dict] = None) -> 
     sig.attrs["strategy"] = name
     sig.attrs["params"] = p
     return sig
+
+
+# ============ 多策略融合 (Ensemble) ============
+
+from typing import Sequence   # noqa: E402
+
+
+class EnsembleStrategy:
+    """把多套策略的信号融合成 1 套,降低单策略过拟合风险。
+
+    voting:
+        weighted — 加权求和(sum(s_i * w_i)),过 entry_threshold 触发买入
+        majority — 多数投票:N 套策略里 ≥ majority_min 套给 1 才开仓;
+                   0 是平仓;-majority_min 套给 -1 才开空(对称)
+        veto     — 多数投票 + 任何 1 套给反向就否决(更保守)
+    """
+
+    def __init__(self,
+                 strategies: Sequence[Strategy | str],
+                 weights: Optional[Sequence[float]] = None,
+                 voting: Literal["weighted", "majority", "veto"] = "weighted",
+                 entry_threshold: float = 0.3,
+                 exit_threshold: float = 0.0,
+                 majority_min: int = 2):
+        # 标准化 strategies → list[Strategy]
+        norm: list[Strategy] = []
+        for s in strategies:
+            if isinstance(s, str):
+                norm.append(get_strategy(s))
+            else:
+                norm.append(s)
+        if not norm:
+            raise ValueError("strategies 不能为空")
+        self.strategies = norm
+        self.n = len(norm)
+        self.weights = (list(weights) if weights else [1.0 / self.n] * self.n)
+        if len(self.weights) != self.n:
+            raise ValueError("weights 长度必须等于 strategies 数量")
+        if not math.isclose(sum(self.weights), 1.0, abs_tol=1e-6):
+            # 归一化权重
+            s = sum(self.weights)
+            self.weights = [w / s for w in self.weights]
+        self.voting = voting
+        self.entry_threshold = entry_threshold
+        self.exit_threshold = exit_threshold
+        self.majority_min = majority_min
+
+    def _aggregate(self, sigs: list[pd.DataFrame]) -> pd.DataFrame:
+        """把多套策略的 signal/position 聚合成一份。"""
+        ref = sigs[0]
+        out = pd.DataFrame(index=ref.index)
+        if self.voting == "weighted":
+            # 权重化的 signal 分数
+            score = sum(sigs[i]["signal"] * w for i, w in enumerate(self.weights))
+            out["score"] = score
+            out["position"] = (score > self.entry_threshold).astype(int)
+            out["signal"] = np.where(
+                out["position"].diff() == 1, 1,
+                np.where(out["position"].diff() == -1, -1, 0),
+            )
+        else:
+            # majority / veto
+            signals = np.vstack([s["signal"].values for s in sigs])
+            n_long = (signals == 1).sum(axis=0)
+            n_short = (signals == -1).sum(axis=0)
+            n_flat = (signals == 0).sum(axis=0)
+            if self.voting == "majority":
+                out["position"] = np.where(
+                    n_long >= self.majority_min, 1,
+                    np.where(n_short >= self.majority_min, -1, 0),
+                )
+            else:  # veto: 必须多数给同向,任何反向就 flat
+                out["position"] = np.where(
+                    (n_long >= self.majority_min) & (n_short == 0), 1,
+                    np.where((n_short >= self.majority_min) & (n_long == 0), -1, 0),
+                )
+            out["position"] = pd.Series(out["position"], index=ref.index)
+            out["signal"] = np.where(
+                out["position"].diff() == 1, 1,
+                np.where(out["position"].diff() == -1, -1, 0),
+            )
+            out["score"] = (n_long - n_short) / self.n
+        out["note"] = "ensemble:" + "+".join(s.name for s in self.strategies)
+        return out
+
+    def run(self, df: pd.DataFrame,
+            params_list: Optional[Sequence[dict]] = None) -> pd.DataFrame:
+        """跑每套子策略并融合。params_list 可为每套策略指定不同 params。"""
+        sigs = []
+        params_list = params_list or [None] * self.n
+        for s, p in zip(self.strategies, params_list):
+            params = {**s.default_params, **(p or {})}
+            sigs.append(s.func(df, params))
+        return self._aggregate(sigs)

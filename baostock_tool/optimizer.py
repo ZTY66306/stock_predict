@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import itertools
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Callable, Optional
 
 import numpy as np
@@ -216,3 +216,143 @@ def grid_search(df: pd.DataFrame, strategy_name: str, param_grid: dict,
                      "trades": len(result.trades)})
     df_out = pd.DataFrame(rows).sort_values("score", ascending=False).reset_index(drop=True)
     return df_out
+
+
+# ============ 滚动稳健性 (Rolling Robustness) ============
+
+@dataclass
+class RollingFold:
+    """一次滚动窗口的回测结果。"""
+    start: pd.Timestamp
+    end: pd.Timestamp
+    total_return: float
+    sharpe: float
+    sortino: float
+    calmar: float
+    max_drawdown: float
+    n_trades: int
+    win_rate: float
+
+
+@dataclass
+class RollingRobustnessResult:
+    """滚动稳健性测试的结果。"""
+    folds: list[RollingFold] = field(default_factory=list)
+    strategy_name: str = ""
+    params: dict = field(default_factory=dict)
+    window: int = 0
+    step: int = 0
+
+    def summary(self) -> pd.Series:
+        """汇总各 fold 的指标 + 一致性评分。"""
+        if not self.folds:
+            return pd.Series(dtype=object)
+        sharpes = [f.sharpe for f in self.folds]
+        returns = [f.total_return for f in self.folds]
+        mdds = [f.max_drawdown for f in self.folds]
+        wins = [f.win_rate for f in self.folds]
+        n_profit = sum(1 for r in returns if r > 0)
+        n_loss = sum(1 for r in returns if r < 0)
+        return pd.Series({
+            "策略": self.strategy_name,
+            "参数": self.params,
+            "窗口大小": self.window,
+            "步长": self.step,
+            "fold 数": len(self.folds),
+            "中位夏普": f"{np.median(sharpes):.2f}",
+            "夏普 std": f"{np.std(sharpes, ddof=0):.2f}",
+            "夏普 min / max": f"{min(sharpes):.2f} / {max(sharpes):.2f}",
+            "中位收益": f"{np.median(returns)*100:.2f}%",
+            "收益 std": f"{np.std(returns, ddof=0)*100:.2f}%",
+            "盈利 fold 数": f"{n_profit} / {len(self.folds)} ({n_profit/len(self.folds):.0%})",
+            "亏损 fold 数": f"{n_loss} / {len(self.folds)}",
+            "中位最大回撤": f"{np.median(mdds)*100:.2f}%",
+            "最差回撤": f"{min(mdds)*100:.2f}%",
+            "中位胜率": f"{np.median(wins)*100:.2f}%",
+        })
+
+    def folds_df(self) -> pd.DataFrame:
+        if not self.folds:
+            return pd.DataFrame()
+        return pd.DataFrame([asdict(f) for f in self.folds])
+
+    def robustness_score(self) -> dict:
+        """综合稳健性评分(0~1,越大越稳健)。
+
+        由三个分量等权平均:
+            1) 盈利 fold 占比(>0 的 fold / 总 fold)
+            2) 1 - 夏普变异系数 CV(std / |mean|),clip 到 0~1
+            3) 最差回撤的"温和度":max_dd 在 -30% 内计 1,-60% 计 0
+        """
+        if not self.folds:
+            return {}
+        sharpes = np.array([f.sharpe for f in self.folds])
+        returns = np.array([f.total_return for f in self.folds])
+        mdds = np.array([f.max_drawdown for f in self.folds])
+        n = len(self.folds)
+        profit_rate = float((returns > 0).sum() / n)
+        mean_abs = abs(sharpes.mean()) if sharpes.mean() != 0 else 1e-6
+        cv = sharpes.std(ddof=0) / mean_abs
+        stability = float(max(0.0, min(1.0, 1.0 - cv)))
+        worst_dd = float(mdds.min())  # 最负数
+        # dd_score: -30% 以内 = 1,-60% 以上 = 0(线性)
+        dd_score = float(np.clip((worst_dd + 0.60) / 0.30, 0.0, 1.0))
+        overall = (profit_rate + stability + dd_score) / 3.0
+        return {
+            "profit_rate": profit_rate,
+            "stability": stability,
+            "dd_score": dd_score,
+            "overall": overall,
+        }
+
+
+class RollingRobustness:
+    """滚动稳健性测试:同一组参数,在多个滑动窗口上跑回测,看表现是否一致。
+
+    与 WalkForward 的区别:
+        WF    — 每窗口内重选参数(测优化是否过拟合)
+        Robust — 同一组参数在多窗口上测(测参数本身是否稳健)
+    """
+
+    def __init__(self, strategy_name: str, params: dict,
+                 window: int = 252, step: int = 63,
+                 engine: Optional[backtest.BacktestEngine] = None,
+                 cfg: Optional[backtest.BacktestConfig] = None):
+        self.strategy_name = strategy_name
+        self.params = params
+        self.window = window
+        self.step = step
+        self.engine = engine or backtest.BacktestEngine(cfg or backtest.BacktestConfig())
+        self.cfg = self.engine.cfg
+
+    def run(self, df: pd.DataFrame) -> RollingRobustnessResult:
+        if df.empty or len(df) < self.window + 10:
+            raise ValueError(f"数据不足,需 ≥ {self.window + 10} 根 bar")
+        folds: list[RollingFold] = []
+        n = len(df)
+        starts = list(range(0, n - self.window + 1, self.step))
+        if not starts:
+            raise ValueError("窗口/步长组合无法产生任何 fold")
+        for s in starts:
+            e = s + self.window
+            sub = df.iloc[s:e]
+            try:
+                sig = strategy.run_strategy(self.strategy_name, sub, self.params)
+                result = self.engine.run(sub, sig)
+                folds.append(RollingFold(
+                    start=sub.index[0], end=sub.index[-1],
+                    total_return=result.total_return,
+                    sharpe=result.sharpe,
+                    sortino=result.sortino,
+                    calmar=result.calmar,
+                    max_drawdown=result.max_drawdown,
+                    n_trades=len(result.trades),
+                    win_rate=result.win_rate,
+                ))
+            except Exception as e:
+                # 单 fold 失败不影响整体
+                continue
+        return RollingRobustnessResult(
+            folds=folds, strategy_name=self.strategy_name,
+            params=self.params, window=self.window, step=self.step,
+        )
