@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "baostock-tool"
+version = "0.2.0"                              # 同步 baostock_tool/__init__.py
+description = "Comprehensive stock analysis / quant / backtest / screener / forecast toolkit based on baostock."
+readme = "README.md"
+requires-python = ">=3.9"                      # matplotlib>=3.6 + scikit-learn>=1.2 都需要 3.9+
+license = { text = "MIT" }
+authors = [
+    { name = "baostock_tool authors", email = "noreply@example.com" },
+]
+keywords = ["baostock", "stock", "quant", "backtest", "china-a-share", "screener"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+
+dependencies = [
+    "baostock>=0.8.9",
+    "pandas>=1.5.0",
+    "numpy>=1.23.0",
+    "matplotlib>=3.6.0",
+    "scipy>=1.10.0",
+    "scikit-learn>=1.2.0",
+    "tqdm>=4.64.0",
+    "tabulate>=0.9.0",
+    "jinja2>=3.1.0",
+]
+
+[project.optional-dependencies]
+ml  = ["xgboost>=1.7.0", "lightgbm>=3.3.0"]   # 装上后 predict 模块可使用 kind="xgb" / kind="lgbm"
+dev = ["pytest>=7.0"]                          # 跑 `pytest tests/ -v`
+
+[project.scripts]
+baostock-tool = "baostock_tool.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/baostock-tool"
+Issues   = "https://github.com/your-org/baostock-tool/issues"
+
+[tool.setuptools]
+packages = ["baostock_tool"]                    # 显式声明,避免自动发现规则的歧义
