@@ -153,4 +153,10 @@ st.dataframe(df_mods, width="stretch", hide_index=True)
 
 
 if __name__ == "__main__":
-    main()
+    # 注意:`streamlit run app.py` 时 `__name__ == "__main__"` 也是 True。
+    # 如果直接调 main(),会 os.execvp 再起一个 streamlit,新的又 execvp... 死循环
+    # 抢下一个空闲端口,刷出 8503/8504/... 一堆进程。
+    # 守则:确认 streamlit 还没加载我们这个脚本(`streamlit.runtime.scriptrunner`
+    # 只在 `streamlit run` 真正执行脚本时才被 import),才走自启路径。
+    if "streamlit.runtime.scriptrunner" not in sys.modules:
+        main()

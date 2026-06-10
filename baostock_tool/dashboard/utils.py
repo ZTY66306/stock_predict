@@ -1,10 +1,14 @@
 """Dashboard 共用工具:数据缓存、UI 组件、配置。
 
 所有数据拉取都走 st.cache_data,避免每次点按钮都重新拉 baostock / akshare。
+所有 I/O 调用通过线程池 + 超时,避免单线程 streamlit 主线程被网络请求卡死。
 """
 from __future__ import annotations
 
 import io
+import logging
+import os
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -13,6 +17,31 @@ import streamlit as st
 
 from baostock_tool import data
 
+logger = logging.getLogger(__name__)
+
+# ============ 线程池 + 超时 ============
+# Streamlit 单线程跑 ScriptRunner,任何一次阻塞的 baostock/akshare 调用都会让
+# 所有新 WebSocket 堆在 accept 队列里卡死(症状:recv-q 暴涨、浏览器报
+# "Connection timed out")。下面用共享线程池 + 显式 timeout 把阻塞调用隔离掉,
+# 主线程最多等 N 秒,超时后返回 fallback,服务继续 accept。
+#
+# 调参:导出环境变量 `DASHBOARD_IO_TIMEOUT=秒数` 即可全站生效,默认 20s。
+_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="dash-io")
+_DEFAULT_TIMEOUT = float(os.environ.get("DASHBOARD_IO_TIMEOUT", "20"))
+
+
+def _call_with_timeout(fn, timeout: float, *args, **kwargs):
+    """在线程池里跑 fn,timeout 秒后抛 FuturesTimeout。"""
+    fut = _EXECUTOR.submit(fn, *args, **kwargs)
+    try:
+        return fut.result(timeout=timeout)
+    except FuturesTimeout:
+        fut.cancel()
+        logger.warning(
+            "%s 超时(>%.1fs)", getattr(fn, "__name__", repr(fn)), timeout
+        )
+        raise
+
 
 # ============ 数据缓存 ============
 
@@ -20,14 +49,27 @@ from baostock_tool import data
 def cached_kline(code: str, start: str, end: str,
                  frequency: str = "d", adjustflag: str = "1") -> pd.DataFrame:
     """缓存 K 线 1 小时。"""
-    return data.get_kline(code, start, end, frequency=frequency, adjustflag=adjustflag)
+    try:
+        return _call_with_timeout(
+            data.get_kline, 20.0,
+            code, start, end, frequency=frequency, adjustflag=adjustflag,
+        )
+    except FuturesTimeout:
+        st.warning(f"K 线拉取超时(20s): {code} {start}~{end}")
+        return pd.DataFrame()
+    except Exception as e:
+        st.warning(f"K 线拉取失败: {e}")
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=86400, show_spinner="查询股票元信息...")
 def cached_securities_info(code: str) -> dict:
     """缓存元信息 1 天。"""
     try:
-        return data.get_securities_info(code) or {}
+        return _call_with_timeout(data.get_securities_info, 10.0, code) or {}
+    except FuturesTimeout:
+        st.warning(f"元信息查询超时(10s): {code}")
+        return {}
     except Exception:
         return {}
 
@@ -36,7 +78,10 @@ def cached_securities_info(code: str) -> dict:
 def cached_all_stocks(date: str) -> list[str]:
     """缓存全市场股票列表 1 天。"""
     try:
-        return data.get_all_codes(date)
+        return _call_with_timeout(data.get_all_codes, 30.0, date)
+    except FuturesTimeout:
+        st.warning(f"全市场股票列表拉取超时(30s): {date}")
+        return []
     except Exception:
         return []
 
@@ -44,7 +89,10 @@ def cached_all_stocks(date: str) -> list[str]:
 @st.cache_data(ttl=86400, show_spinner="指数成分股...")
 def cached_index_codes(index: str, date: str) -> list[str]:
     try:
-        return data.get_index_codes(index, date)
+        return _call_with_timeout(data.get_index_codes, 15.0, index, date)
+    except FuturesTimeout:
+        st.warning(f"指数成分股拉取超时(15s): {index} {date}")
+        return []
     except Exception:
         return []
 
@@ -56,7 +104,10 @@ def cached_fund_flow(code: str) -> pd.DataFrame:
     if not ff._HAS_AKSHARE:
         return pd.DataFrame()
     try:
-        return ff.get_fund_flow(code)
+        return _call_with_timeout(ff.get_fund_flow, 15.0, code)
+    except FuturesTimeout:
+        st.warning(f"资金流拉取超时(15s): {code}")
+        return pd.DataFrame()
     except Exception as e:
         st.warning(f"资金流拉取失败: {e}")
         return pd.DataFrame()
@@ -68,7 +119,10 @@ def cached_northbound() -> pd.DataFrame:
     if not ff._HAS_AKSHARE:
         return pd.DataFrame()
     try:
-        return ff.get_northbound()
+        return _call_with_timeout(ff.get_northbound, 15.0)
+    except FuturesTimeout:
+        st.warning("北向资金拉取超时(15s)")
+        return pd.DataFrame()
     except Exception as e:
         st.warning(f"北向资金拉取失败: {e}")
         return pd.DataFrame()
@@ -80,7 +134,10 @@ def cached_limit_up(date: str) -> pd.DataFrame:
     if not mo._HAS_AKSHARE:
         return pd.DataFrame()
     try:
-        return mo.daily_limit_up(date)
+        return _call_with_timeout(mo.daily_limit_up, 20.0, date)
+    except FuturesTimeout:
+        st.warning(f"涨停池拉取超时(20s): {date}")
+        return pd.DataFrame()
     except Exception as e:
         st.warning(f"涨停池拉取失败: {e}")
         return pd.DataFrame()
@@ -227,8 +284,11 @@ def check_login():
     """确保 baostock 已登录(避免每个页面都写)。"""
     try:
         from baostock_tool import client
-        client.ensure_login()
+        _call_with_timeout(client.ensure_login, 10.0)
         return True
+    except FuturesTimeout:
+        st.error("❌ baostock 登录超时(10s),网络或 baostock 服务可能不可用。")
+        return False
     except Exception as e:
         st.error(f"❌ baostock 登录失败: {e}\n\n请到终端跑 `python -m baostock_tool.cli login`")
         return False
