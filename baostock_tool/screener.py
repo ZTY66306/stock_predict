@@ -238,7 +238,7 @@ class Screen:
                         "pbMRQ": float(last.get("pbMRQ", 0) or 0),
                     })
             except Exception as e:
-                logger.debug("处理 %s 失败: %s", code, e)
+                logger.warning("处理 %s 失败: %s: %s", code, type(e).__name__, e)
                 continue
             if limit and len(results) >= limit * 5:
                 # 提前取够,避免无谓查询

@@ -8,8 +8,11 @@
 """
 from __future__ import annotations
 
+import functools
 import logging
-from typing import Iterable, Literal, Optional
+import time
+import zlib
+from typing import Callable, Iterable, Literal, Optional, TypeVar
 
 import baostock as bs
 import pandas as pd
@@ -112,6 +115,48 @@ def get_industry(src: Literal["sw", "industry"] = "sw") -> pd.DataFrame:
 
 # ============ K 线 ============
 
+# ============ 瞬时错误重试 ============
+# baostock 偶发 zlib.error / ConnectionError(典型如 'Error -3 while decompressing
+# data: invalid distance too far back'),都是服务端 gzip 流被打断。baostock 自己的
+# `rs.error_code` 路径只能接住它内部 catch 住的,逃出来的 Python 异常没人管。
+# 下面这个装饰器对这类瞬时错误做指数退避,业务错误(返回码非 0)不重试。
+_T = TypeVar("_T")
+_TRANSIENT_EXC: tuple[type[BaseException], ...] = (
+    zlib.error, IOError, OSError, ConnectionError, TimeoutError,
+)
+
+
+def _retry_transient(max_attempts: int = 3, base_delay: float = 1.0) -> Callable:
+    """对 _TRANSIENT_EXC 里的异常做指数退避重试,非瞬时异常立即上抛。"""
+    def deco(fn: Callable[..., _T]) -> Callable[..., _T]:
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs) -> _T:
+            last: BaseException | None = None
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return fn(*args, **kwargs)
+                except _TRANSIENT_EXC as e:
+                    last = e
+                    if attempt == max_attempts:
+                        logger.warning(
+                            "%s 第 %d/%d 次仍失败,放弃: %s: %s",
+                            getattr(fn, "__name__", repr(fn)), attempt, max_attempts,
+                            type(e).__name__, e,
+                        )
+                        raise
+                    delay = base_delay * (2 ** (attempt - 1))
+                    logger.info(
+                        "%s 第 %d/%d 次瞬时失败,%.1fs 后重试: %s: %s",
+                        getattr(fn, "__name__", repr(fn)), attempt, max_attempts, delay,
+                        type(e).__name__, e,
+                    )
+                    time.sleep(delay)
+            assert last is not None  # 循环退出了说明有异常
+            raise last
+        return wrapper
+    return deco
+
+
 def get_kline(
     code: str,
     start: str = "2020-01-01",
@@ -132,6 +177,11 @@ def get_kline(
     缓存:
         use_cache=True 时先查本地 .cache/kline,命中即返回;
         refresh=True 强制从 baostock 重新拉取并写回。
+
+    失败语义:
+        - 瞬时错误(zlib.error / IOError / OSError / ConnectionError / TimeoutError)
+          自动重试 3 次(0s/1s/2s 退避),最终失败返回空 DataFrame(不 raise)。
+        - baostock 业务错误(error_code != "0")返回空 DataFrame 并记 warning。
     """
     client.ensure_login()
     end = end or to_date(pd.Timestamp.now())
@@ -141,17 +191,36 @@ def get_kline(
         if cached is not None and not cached.empty:
             return cached
 
-    rs = bs.query_history_k_data_plus(
-        code, fields, start_date=start, end_date=end,
-        frequency=frequency, adjustflag=adjustflag,
-    )
-    rows = []
-    while rs.error_code == "0" and rs.next():
-        rows.append(rs.get_row_data())
-    if not rows:
-        logger.warning("get_kline(%s) 返回空: %s", code, rs.error_msg)
+    @_retry_transient(max_attempts=3, base_delay=1.0)
+    def _fetch() -> tuple[list[list[str]], list[str]]:
+        rs = bs.query_history_k_data_plus(
+            code, fields, start_date=start, end_date=end,
+            frequency=frequency, adjustflag=adjustflag,
+        )
+        rows: list[list[str]] = []
+        while rs.error_code == "0" and rs.next():
+            rows.append(rs.get_row_data())
+        if rs.error_code != "0":
+            # 业务错误(非瞬时),让外层走 empty 分支
+            raise ValueError(f"baostock error: {rs.error_msg}")
+        return rows, list(rs.fields)
+
+    try:
+        rows, rs_fields = _fetch()
+    except _TRANSIENT_EXC as e:
+        # 重试 3 次后仍失败:返回空 DF,不 raise(让 screener / 上层继续跑)
+        logger.warning("get_kline(%s) 网络异常已重试 3 次,返回空: %s: %s",
+                       code, type(e).__name__, e)
         return pd.DataFrame()
-    df = pd.DataFrame(rows, columns=rs.fields)
+    except ValueError as e:
+        # baostock 业务错误(error_code != "0")
+        logger.warning("get_kline(%s) 返回空: %s", code, e)
+        return pd.DataFrame()
+
+    if not rows:
+        logger.warning("get_kline(%s) 返回空: 无数据", code)
+        return pd.DataFrame()
+    df = pd.DataFrame(rows, columns=rs_fields)
     df = normalize_kline_df(df)
 
     if use_cache and not df.empty:
