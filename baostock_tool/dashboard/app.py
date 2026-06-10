@@ -68,7 +68,7 @@ with col1:
     else:
         st.stop()
 with col2:
-    from baostock_tool.dashboard import fund_flow as ff, market_overview as mo
+    from baostock_tool import fund_flow as ff, market_overview as mo
     if ff._HAS_AKSHARE:
         st.success("✅ akshare 已装(资金流/涨跌停可用)")
     else:
