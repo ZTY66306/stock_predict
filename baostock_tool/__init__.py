@@ -28,7 +28,7 @@ from __future__ import annotations
 __version__ = "0.2.0"
 
 # 暴露所有子模块
-from . import (
+from baostock_tool import (
     client, data, data_cache, indicators, patterns, strategy,
     backtest, position, optimizer, screener, portfolio,
     quant, predict, report, utils, grid_backtest,
@@ -36,17 +36,17 @@ from . import (
 )
 
 # 顶层便捷符号
-from .predict import (
+from baostock_tool.predict import (
     AVAILABLE_MODELS, StackingEnsemble, WalkForwardML,
     select_features, cross_sectional_score,
 )
-from .patterns import list_patterns
-from .position import kelly_fraction, volatility_target, fixed_fractional
-from .optimizer import WalkForwardOptimizer, grid_search, RollingRobustness
-from .portfolio import Portfolio, long_short_backtest, risk_parity_weights
-from .screener import SCREEN_TEMPLATES
-from .strategy import EnsembleStrategy
-from . import grid_backtest as _grid
+from baostock_tool.patterns import list_patterns
+from baostock_tool.position import kelly_fraction, volatility_target, fixed_fractional
+from baostock_tool.optimizer import WalkForwardOptimizer, grid_search, RollingRobustness
+from baostock_tool.portfolio import Portfolio, long_short_backtest, risk_parity_weights
+from baostock_tool.screener import SCREEN_TEMPLATES
+from baostock_tool.strategy import EnsembleStrategy
+from baostock_tool import grid_backtest as _grid
 
 __all__ = [
     "client", "data", "data_cache", "indicators", "patterns", "strategy",

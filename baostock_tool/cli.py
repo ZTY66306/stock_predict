@@ -17,16 +17,16 @@ from typing import Optional
 
 import pandas as pd
 
-from . import client, data, indicators, screener, strategy, backtest, report, predict
-from . import data_cache
-from . import grid_backtest as gb
-from . import pairs_trading as pt
-from . import fund_flow as ff
-from . import dca
-from . import market_overview as mo
-from . import paper_trader as ptr
-from .utils import default_start, today_str
-from .patterns import list_patterns
+from baostock_tool import client, data, indicators, screener, strategy, backtest, report, predict
+from baostock_tool import data_cache
+from baostock_tool import grid_backtest as gb
+from baostock_tool import pairs_trading as pt
+from baostock_tool import fund_flow as ff
+from baostock_tool import dca
+from baostock_tool import market_overview as mo
+from baostock_tool import paper_trader as ptr
+from baostock_tool.utils import default_start, today_str
+from baostock_tool.patterns import list_patterns
 
 
 def cmd_login(args):
@@ -121,14 +121,14 @@ def cmd_predict(args):
         X, _ = predict.make_supervised(feat, horizon=args.horizon, target="direction")
         if not X.empty:
             imp = predict.feature_importance(m, X.columns.tolist(), top=10)
-            print("\nTop-10 重要特征:")
+            print("\n前 10 重要特征:")
             print(imp.to_string())
     except Exception as e:
         pass
 
 
 def cmd_quant(args):
-    from . import quant
+    from baostock_tool import quant
     codes = data.get_index_codes(args.index, args.date)
     if not codes:
         print("无法获取成分股")
@@ -186,13 +186,13 @@ def cmd_risk(args):
         if not bench_df.empty:
             bench_eq = (1 + bench_df["close"].pct_change().fillna(0)).cumprod() * args.cash
             metrics_b = result.risk_metrics(bench_eq)
-            print("\n相对基准(年化 alpha/beta/IR):")
+            print("\n相对基准(年化 α/β/信息比):")
             print(metrics_b.to_string())
 
 
 def cmd_optimize(args):
     """网格搜索 + 可选 walk-forward。"""
-    from . import optimizer
+    from baostock_tool import optimizer
     df = data.get_kline(args.code, args.start, args.end)
     if df.empty:
         print("无数据")
@@ -226,7 +226,7 @@ def cmd_optimize(args):
 
 def cmd_pattern(args):
     """列出最近 K 线形态命中。"""
-    from . import patterns as ptn
+    from baostock_tool import patterns as ptn
     df = data.get_kline(args.code, args.start, args.end)
     if df.empty:
         print("无数据")
@@ -473,7 +473,7 @@ def cmd_paper(args):
 
 def cmd_pairs(args):
     """配对交易回测:选对 → 价差回测。"""
-    from . import data
+    from baostock_tool import data
     print(f"拉取 {len(args.codes.split(','))} 只股票 K 线...")
     prices = pd.DataFrame()
     for c in args.codes.split(","):
@@ -511,7 +511,7 @@ def cmd_pairs(args):
 
 def cmd_ensemble(args):
     """跑多策略融合并回测。"""
-    from . import data, backtest
+    from baostock_tool import data, backtest
     df = data.get_kline(args.code, args.start, args.end)
     if df.empty:
         print("无数据")
@@ -539,7 +539,7 @@ def cmd_ensemble(args):
 
 def cmd_robustness(args):
     """滚动稳健性测试。"""
-    from . import data, optimizer
+    from baostock_tool import data, optimizer
     df = data.get_kline(args.code, args.start, args.end)
     if df.empty:
         print("无数据")

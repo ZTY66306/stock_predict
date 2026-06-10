@@ -38,7 +38,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from . import data
+from baostock_tool import data
 
 
 # ============ 选对 ============
@@ -228,7 +228,7 @@ class PairsResult:
         return pd.Series({
             "代码A": self.code_a,
             "代码B": self.code_b,
-            "Hedge Ratio": f"{self.hedge_ratio:.4f}",
+            "对冲比率": f"{self.hedge_ratio:.4f}",
             "区间": f"{eq.index[0].date()} ~ {eq.index[-1].date()}",
             "初始资金": f"{init:,.2f}",
             "总收益率": f"{total_ret*100:.2f}%",
@@ -434,26 +434,26 @@ def plot(result: PairsResult, save_path: Optional[str] = None):
     import matplotlib.pyplot as plt
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(14, 10), sharex=True,
                                          gridspec_kw={"height_ratios": [1, 1, 1]})
-    ax1.plot(result.spread.index, result.spread.values, color="black", linewidth=0.8, label="Spread")
+    ax1.plot(result.spread.index, result.spread.values, color="black", linewidth=0.8, label="价差")
     ax1.axhline(result.spread.mean(), color="grey", linestyle="--", linewidth=0.7)
-    ax1.set_title(f"Pairs  {result.code_a} vs {result.code_b}  hedge={result.hedge_ratio:.3f}")
-    ax1.set_ylabel("Spread")
+    ax1.set_title(f"配对  {result.code_a} vs {result.code_b}  对冲比率={result.hedge_ratio:.3f}")
+    ax1.set_ylabel("价差")
     ax1.legend(loc="best")
     ax1.grid(True, alpha=0.3)
 
-    ax2.plot(result.zscore.index, result.zscore.values, color="navy", linewidth=0.9, label="z-score")
-    ax2.axhline(result.entry_z, color="red", linestyle="--", linewidth=0.7, label=f"entry ±{result.entry_z}")
+    ax2.plot(result.zscore.index, result.zscore.values, color="navy", linewidth=0.9, label="z 分数")
+    ax2.axhline(result.entry_z, color="red", linestyle="--", linewidth=0.7, label=f"入场 ±{result.entry_z}")
     ax2.axhline(-result.entry_z, color="red", linestyle="--", linewidth=0.7)
-    ax2.axhline(result.exit_z, color="green", linestyle="--", linewidth=0.7, label=f"exit ±{result.exit_z}")
+    ax2.axhline(result.exit_z, color="green", linestyle="--", linewidth=0.7, label=f"出场 ±{result.exit_z}")
     ax2.axhline(-result.exit_z, color="green", linestyle="--", linewidth=0.7)
     ax2.axhline(0, color="black", linewidth=0.5)
-    ax2.set_ylabel("z-score")
+    ax2.set_ylabel("z 分数")
     ax2.legend(loc="best")
     ax2.grid(True, alpha=0.3)
 
-    ax3.plot(result.equity.index, result.equity.values, color="darkgreen", linewidth=1.0, label="Equity")
-    ax3.axhline(result.cfg["capital"], color="grey", linestyle="--", linewidth=0.7, label="Initial")
-    ax3.set_ylabel("Equity")
+    ax3.plot(result.equity.index, result.equity.values, color="darkgreen", linewidth=1.0, label="权益")
+    ax3.axhline(result.cfg["capital"], color="grey", linestyle="--", linewidth=0.7, label="初始资金")
+    ax3.set_ylabel("权益")
     ax3.legend(loc="best")
     ax3.grid(True, alpha=0.3)
     fig.tight_layout()

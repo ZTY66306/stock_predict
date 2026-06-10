@@ -31,7 +31,7 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 
-from . import backtest, data, strategy
+from baostock_tool import backtest, data, strategy
 
 logger = logging.getLogger(__name__)
 
@@ -186,9 +186,9 @@ class PaperTrader:
 
         date: 'YYYY-MM-DD',None = 用今天
         """
-        from . import client
+        from baostock_tool import client
         client.ensure_login()
-        from .grid_backtest import resolve_code
+        from baostock_tool.grid_backtest import resolve_code
         signals: list[PaperSignal] = []
         log: list[str] = []
         # 用最新一天的日期

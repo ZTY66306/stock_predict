@@ -6,8 +6,8 @@ import json
 import matplotlib.pyplot as plt
 import streamlit as st
 
-from ... import backtest, strategy
-from .. import utils
+from baostock_tool import backtest, strategy
+from baostock_tool.dashboard import utils
 
 st.set_page_config(page_title="回测", page_icon="🎯", layout="wide")
 utils.check_login() or st.stop()

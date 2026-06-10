@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
-from ... import data, indicators as ind, patterns as ptn
-from .. import utils
+from baostock_tool import data, indicators as ind, patterns as ptn
+from baostock_tool.dashboard import utils
 
 st.set_page_config(page_title="K 线 + 指标", page_icon="📈", layout="wide")
 utils.check_login() or st.stop()
@@ -61,7 +61,7 @@ if st.button("📊 加指标 + 画图", type="primary", use_container_width=True
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8),
                                      gridspec_kw={"height_ratios": [2, 1]},
                                      sharex=True)
-    ax1.plot(df_plot.index, df_plot["close"], color="black", linewidth=1.0, label="Close")
+    ax1.plot(df_plot.index, df_plot["close"], color="black", linewidth=1.0, label="收盘价")
     for c in df_plot.columns:
         if c.startswith("MA"):
             ax1.plot(df_plot.index, df_plot[c], linewidth=0.7, label=c)

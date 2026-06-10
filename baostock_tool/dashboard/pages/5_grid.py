@@ -4,8 +4,8 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import streamlit as st
 
-from ... import grid_backtest as gb
-from .. import utils
+from baostock_tool import grid_backtest as gb
+from baostock_tool.dashboard import utils
 
 st.set_page_config(page_title="网格复盘", page_icon="🕸️", layout="wide")
 utils.check_login() or st.stop()
@@ -110,25 +110,25 @@ if st.button("🚀 跑网格回测", type="primary", use_container_width=True):
     df = utils.cached_kline(code, start, end)
     for g in result.grid_lines:
         ax1.axhline(g, color="grey", linestyle=":", alpha=0.4, linewidth=0.8)
-    ax1.plot(df.index, df["close"], color="black", linewidth=1.0, label="Close")
+    ax1.plot(df.index, df["close"], color="black", linewidth=1.0, label="收盘价")
     ax1.fill_between(df.index, df["low"], df["high"], color="lightgrey", alpha=0.3, label="H/L")
     tdf = result.trades_df()
     if not tdf.empty:
         buys = tdf[tdf["side"] == "buy"]
         sells = tdf[tdf["side"] == "sell"]
         if not buys.empty:
-            ax1.scatter(buys["date"], buys["price"], marker="^", color="red", s=60, label="Buy", zorder=5)
+            ax1.scatter(buys["date"], buys["price"], marker="^", color="red", s=60, label="买入", zorder=5)
         if not sells.empty:
-            ax1.scatter(sells["date"], sells["price"], marker="v", color="green", s=60, label="Sell", zorder=5)
+            ax1.scatter(sells["date"], sells["price"], marker="v", color="green", s=60, label="卖出", zorder=5)
     ax1.set_title(f"{code}  {result.name}  网格 {result.cfg.n_grids} 格")
     ax1.legend(loc="best")
     ax1.grid(True, alpha=0.3)
 
     # 权益 + 持仓
-    ax2.plot(result.equity.index, result.equity.values, color="navy", linewidth=1.2, label="Equity")
-    ax2.axhline(cash, color="grey", linestyle="--", linewidth=0.7, label="Initial")
+    ax2.plot(result.equity.index, result.equity.values, color="navy", linewidth=1.2, label="权益")
+    ax2.axhline(cash, color="grey", linestyle="--", linewidth=0.7, label="初始资金")
     ax2.fill_between(result.position_history.index, 0, result.position_history.values,
-                     color="steelblue", alpha=0.4, label="Position")
+                     color="steelblue", alpha=0.4, label="持仓")
     ax2.set_title("资金曲线 + 持仓")
     ax2.legend(loc="best")
     ax2.grid(True, alpha=0.3)

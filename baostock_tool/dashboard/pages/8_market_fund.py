@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 import streamlit as st
 
-from .. import utils
+from baostock_tool.dashboard import utils
 
 st.set_page_config(page_title="资金流/涨跌停", page_icon="📡", layout="wide")
 
@@ -65,7 +65,7 @@ with tab3:
 # ============ 4. 题材/连板 ============
 with tab4:
     utils.section_header("🔥 题材涨停排行")
-    from ... import market_overview as mo
+    from baostock_tool import market_overview as mo
     if st.button("🔄 刷新", key="theme_refresh"):
         st.cache_data.clear()
     date_t = st.date_input("日期", value=(datetime.now() - timedelta(days=1)).date(),

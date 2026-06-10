@@ -30,7 +30,7 @@ from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 
-from . import indicators as ind
+from baostock_tool import indicators as ind
 
 logger = logging.getLogger(__name__)
 
@@ -385,7 +385,7 @@ def cross_sectional_score(codes: Sequence[str], start: str, end: str,
 
     返回: DataFrame(index=date, columns=code),单元是预测的收益/方向(根据 target)。
     """
-    from . import data
+    from baostock_tool import data
     from tqdm import tqdm
     iterator = tqdm(list(codes), desc="ML打分") if show_progress else codes
     out: dict[str, pd.Series] = {}

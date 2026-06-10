@@ -15,8 +15,8 @@ import baostock as bs
 import pandas as pd
 from tqdm import tqdm
 
-from . import client, data_cache
-from .utils import normalize_kline_df, safe_float, to_date
+from baostock_tool import client, data_cache
+from baostock_tool.utils import normalize_kline_df, safe_float, to_date
 
 logger = logging.getLogger(__name__)
 

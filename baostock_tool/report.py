@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from .backtest import BacktestResult
+from baostock_tool.backtest import BacktestResult
 
 # 中文字体检测:有则用,无则退化到 DejaVu Sans(部分中文会变成方框,但不影响逻辑)
 def _setup_cn_font():
@@ -303,7 +303,7 @@ def plot_position_timeline(trades: list, save_path: Optional[str] = None) -> Non
     """持仓时间线:横轴日期,纵轴累计持仓状态。"""
     if not trades:
         return
-    from .backtest import Trade
+    from baostock_tool.backtest import Trade
     events = []
     for t in trades:
         sign = 1 if t.side == "buy" else -1

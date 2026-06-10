@@ -25,8 +25,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from . import client, data, indicators as ind
-from .patterns import BULLISH_PATTERNS, BEARISH_PATTERNS, list_patterns
+from baostock_tool import client, data, indicators as ind
+from baostock_tool.patterns import BULLISH_PATTERNS, BEARISH_PATTERNS, list_patterns
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +134,7 @@ def pct_change_between(lo: float, hi: float) -> Condition:
 
 def pattern(name: str) -> Condition:
     """把 K 线形态包装为筛股条件。name: 形态名,如 'engulfing_bullish' / 'morning_star'。"""
-    from . import patterns as ptn
+    from baostock_tool import patterns as ptn
     func = ptn.detect
     def _cond(df: pd.DataFrame) -> pd.Series:
         return func(df, name)
@@ -144,7 +144,7 @@ def pattern(name: str) -> Condition:
 
 def pattern_bullish_score(min_score: int = 2) -> Condition:
     """多形态看涨共振:同时出现 ≥ min_score 个看涨形态时命中。"""
-    from . import patterns as ptn
+    from baostock_tool import patterns as ptn
     def _cond(df: pd.DataFrame) -> pd.Series:
         return ptn.pattern_score(df, bullish=True) >= min_score
     _cond.__name__ = f"pattern_bullish_ge_{min_score}"
@@ -153,7 +153,7 @@ def pattern_bullish_score(min_score: int = 2) -> Condition:
 
 def pattern_bearish_score(max_score: int = -2) -> Condition:
     """多形态看跌共振。"""
-    from . import patterns as ptn
+    from baostock_tool import patterns as ptn
     def _cond(df: pd.DataFrame) -> pd.Series:
         return ptn.pattern_score(df, bullish=False) <= max_score
     _cond.__name__ = f"pattern_bearish_le_{max_score}"

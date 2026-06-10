@@ -14,7 +14,7 @@ from typing import Callable, Optional
 import numpy as np
 import pandas as pd
 
-from . import backtest, strategy
+from baostock_tool import backtest, strategy
 
 
 MetricFn = Callable[[backtest.BacktestResult], float]

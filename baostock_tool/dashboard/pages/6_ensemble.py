@@ -6,8 +6,8 @@ import json
 import matplotlib.pyplot as plt
 import streamlit as st
 
-from ... import backtest, optimizer, strategy
-from .. import utils
+from baostock_tool import backtest, optimizer, strategy
+from baostock_tool.dashboard import utils
 
 st.set_page_config(page_title="多策略融合", page_icon="🧩", layout="wide")
 utils.check_login() or st.stop()
@@ -85,7 +85,7 @@ with tab1:
 
         fig, ax = plt.subplots(figsize=(14, 5))
         ax.plot(result.equity.index, result.equity.values, color="navy", linewidth=1.2)
-        ax.axhline(100000, color="grey", linestyle="--", linewidth=0.7, label="Initial")
+        ax.axhline(100000, color="grey", linestyle="--", linewidth=0.7, label="初始资金")
         ax.set_title(f"{code}  Ensemble({voting})  {len(chosen)} 策略")
         ax.legend()
         ax.grid(True, alpha=0.3)

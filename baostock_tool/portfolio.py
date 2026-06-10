@@ -8,7 +8,7 @@ from typing import Callable, Literal, Optional
 import numpy as np
 import pandas as pd
 
-from . import backtest
+from baostock_tool import backtest
 
 
 # ============ 权重构造 ============

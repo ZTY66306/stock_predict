@@ -6,8 +6,8 @@ import os
 
 import streamlit as st
 
-from ... import paper_trader as ptr
-from .. import utils
+from baostock_tool import paper_trader as ptr
+from baostock_tool.dashboard import utils
 
 st.set_page_config(page_title="实盘模拟", page_icon="📊", layout="wide")
 utils.check_login() or st.stop()

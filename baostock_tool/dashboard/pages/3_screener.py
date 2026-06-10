@@ -4,8 +4,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from ... import screener
-from .. import utils
+from baostock_tool import screener
+from baostock_tool.dashboard import utils
 
 st.set_page_config(page_title="选股", page_icon="🔍", layout="wide")
 utils.check_login() or st.stop()

@@ -15,7 +15,7 @@ from typing import Optional
 
 import pandas as pd
 
-from .utils import ensure_dir
+from baostock_tool.utils import ensure_dir
 
 logger = logging.getLogger(__name__)
 

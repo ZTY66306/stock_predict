@@ -33,7 +33,7 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 
-from . import client, data
+from baostock_tool import client, data
 
 # ============ A 股交易规则常量 ============
 
@@ -591,7 +591,7 @@ def plot_price_with_grid(result: GridResult, df: Optional[pd.DataFrame] = None,
     fig, ax = plt.subplots(figsize=(14, 7))
     for g in result.grid_lines:
         ax.axhline(g, color="grey", linestyle=":", alpha=0.4, linewidth=0.8)
-    ax.plot(df.index, df["close"], color="black", linewidth=1.0, label="Close")
+    ax.plot(df.index, df["close"], color="black", linewidth=1.0, label="收盘价")
     ax.fill_between(df.index, df["low"], df["high"], color="lightgrey",
                     alpha=0.3, label="H/L range")
     tdf = result.trades_df() if result.trades else pd.DataFrame()
@@ -600,16 +600,16 @@ def plot_price_with_grid(result: GridResult, df: Optional[pd.DataFrame] = None,
         sells = tdf[tdf["side"] == "sell"]
         if not buys.empty:
             ax.scatter(buys["date"], buys["price"], marker="^",
-                       color="red", s=60, label="Buy", zorder=5)
+                       color="red", s=60, label="买入", zorder=5)
         if not sells.empty:
             ax.scatter(sells["date"], sells["price"], marker="v",
-                       color="green", s=60, label="Sell", zorder=5)
+                       color="green", s=60, label="卖出", zorder=5)
     ax.set_title(
         f"Grid Backtest  {result.code} {result.name}  "
         f"[{result.cfg.start} ~ {df.index[-1].date()}]  "
         f"grid={result.cfg.n_grids}  limit={result.price_limit*100:.0f}%"
     )
-    ax.set_ylabel("Price")
+    ax.set_ylabel("价格")
     ax.legend(loc="best")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -627,23 +627,23 @@ def plot_equity(result: GridResult, save_path: Optional[str] = None):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8), sharex=True,
                                     gridspec_kw={"height_ratios": [2, 1]})
     ax1.plot(result.equity.index, result.equity.values,
-             color="navy", linewidth=1.2, label="Equity")
+             color="navy", linewidth=1.2, label="权益")
     ax1.axhline(result.cfg.capital, color="grey", linestyle="--",
-                linewidth=0.8, label="Initial")
+                linewidth=0.8, label="初始资金")
     ax1.set_title(
         f"Equity  {result.code} {result.name}  "
         f"final={result.equity.iloc[-1]:,.0f}  "
         f"stock_hold={result.stock_return*100:.2f}%"
     )
-    ax1.set_ylabel("Equity")
+    ax1.set_ylabel("权益")
     ax1.legend(loc="best")
     ax1.grid(True, alpha=0.3)
 
     ax2.fill_between(result.position_history.index, 0,
                      result.position_history.values,
-                     color="steelblue", alpha=0.5, label="Position")
+                     color="steelblue", alpha=0.5, label="持仓")
     ax2.plot(result.available_history.index, result.available_history.values,
-             color="orange", linewidth=1.0, label="Available (T+1)")
+             color="orange", linewidth=1.0, label="可卖 (T+1)")
     ax2.set_ylabel("Shares")
     ax2.legend(loc="best")
     ax2.grid(True, alpha=0.3)

@@ -4,8 +4,8 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import streamlit as st
 
-from ... import dca
-from .. import utils
+from baostock_tool import dca
+from baostock_tool.dashboard import utils
 
 st.set_page_config(page_title="智能定投", page_icon="💰", layout="wide")
 utils.check_login() or st.stop()
@@ -83,9 +83,9 @@ if not show_compare:
         ax1.grid(True, alpha=0.3)
         avg_cost = result.cost_basis_history / result.shares_history.replace(0, float("nan"))
         ax2.plot(df_check.index, df_check["close"].values, color="black", linewidth=0.7,
-                 label="Close")
+                 label="收盘价")
         ax2.plot(avg_cost.index, avg_cost.values, color="orange", linewidth=1.0,
-                 label="Avg Cost")
+                 label="平均成本")
         ax2.legend()
         ax2.grid(True, alpha=0.3)
         fig.tight_layout()

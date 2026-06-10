@@ -23,7 +23,7 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 
-from . import data, indicators as ind
+from baostock_tool import data, indicators as ind
 
 
 Frequency = Literal["weekly", "biweekly", "monthly"]
@@ -126,10 +126,10 @@ def dca_backtest(code_or_name: str,
         dip_buy   — 跌幅加仓:当周/当月跌幅 < dip_threshold → dip_multiplier 倍;否则正常
         lump_sum  — 一次性投入(在首日)
     """
-    from . import client
+    from baostock_tool import client
     client.ensure_login()
     # 自动解析名称
-    from .grid_backtest import resolve_code
+    from baostock_tool.grid_backtest import resolve_code
     code, name = resolve_code(code_or_name)
     df = data.get_kline(code, start, end, use_cache=True)
     if df.empty:
@@ -307,13 +307,13 @@ def plot(result: DCAResult, save_path: Optional[str] = None):
     ax1.grid(True, alpha=0.3)
 
     # 平均成本 vs 收盘价
-    from . import data as _data
+    from baostock_tool import data as _data
     df = _data.get_kline(result.code, result.start, result.end, use_cache=True)
     avg_cost_series = result.cost_basis_history / result.shares_history.replace(0, np.nan)
     ax2.plot(df.index, df["close"].values, color="black", linewidth=0.7,
-             label="Close")
+             label="收盘价")
     ax2.plot(avg_cost_series.index, avg_cost_series.values,
-             color="orange", linewidth=1.0, label="Avg Cost")
+             color="orange", linewidth=1.0, label="平均成本")
     ax2.set_ylabel("价格")
     ax2.legend(loc="best")
     ax2.grid(True, alpha=0.3)

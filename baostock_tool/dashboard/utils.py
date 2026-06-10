@@ -11,7 +11,7 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
-from .. import data
+from baostock_tool.dashboard import data
 
 
 # ============ 数据缓存 ============
@@ -52,7 +52,7 @@ def cached_index_codes(index: str, date: str) -> list[str]:
 @st.cache_data(ttl=300, show_spinner="查询资金流...")
 def cached_fund_flow(code: str) -> pd.DataFrame:
     """资金流缓存 5 分钟(实时数据)。"""
-    from .. import fund_flow as ff
+    from baostock_tool.dashboard import fund_flow as ff
     if not ff._HAS_AKSHARE:
         return pd.DataFrame()
     try:
@@ -64,7 +64,7 @@ def cached_fund_flow(code: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=300, show_spinner="北向资金...")
 def cached_northbound() -> pd.DataFrame:
-    from .. import fund_flow as ff
+    from baostock_tool.dashboard import fund_flow as ff
     if not ff._HAS_AKSHARE:
         return pd.DataFrame()
     try:
@@ -76,7 +76,7 @@ def cached_northbound() -> pd.DataFrame:
 
 @st.cache_data(ttl=300, show_spinner="涨跌停...")
 def cached_limit_up(date: str) -> pd.DataFrame:
-    from .. import market_overview as mo
+    from baostock_tool.dashboard import market_overview as mo
     if not mo._HAS_AKSHARE:
         return pd.DataFrame()
     try:
@@ -205,7 +205,7 @@ def error_boundary(func):
 
 def akshare_warning():
     """在用 akshare 的页面前检查并提示。"""
-    from .. import fund_flow as ff, market_overview as mo
+    from baostock_tool.dashboard import fund_flow as ff, market_overview as mo
     if not ff._HAS_AKSHARE:
         st.warning(
             "⚠️ **本功能依赖 akshare**,未检测到。运行 `pip install akshare` 后重启 dashboard。"
@@ -226,7 +226,7 @@ def section_header(title: str, subtitle: str = ""):
 def check_login():
     """确保 baostock 已登录(避免每个页面都写)。"""
     try:
-        from .. import client
+        from baostock_tool.dashboard import client
         client.ensure_login()
         return True
     except Exception as e:

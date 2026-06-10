@@ -15,7 +15,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from . import utils
+from baostock_tool.dashboard import utils
 
 
 def main() -> None:
@@ -34,7 +34,7 @@ import streamlit as st
 
 # 全局页面配置
 st.set_page_config(
-    page_title="baostock_tool 看板",
+    page_title="A 股量化研究看板",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -68,7 +68,7 @@ with col1:
     else:
         st.stop()
 with col2:
-    from .. import fund_flow as ff, market_overview as mo
+    from baostock_tool.dashboard import fund_flow as ff, market_overview as mo
     if ff._HAS_AKSHARE:
         st.success("✅ akshare 已装(资金流/涨跌停可用)")
     else:

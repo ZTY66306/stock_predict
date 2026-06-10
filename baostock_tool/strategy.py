@@ -14,7 +14,7 @@ from typing import Callable, Literal, Optional, Sequence
 import numpy as np
 import pandas as pd
 
-from . import indicators as ind
+from baostock_tool import indicators as ind
 
 
 StrategyFunc = Callable[[pd.DataFrame, dict], pd.DataFrame]
