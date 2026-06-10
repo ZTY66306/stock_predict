@@ -69,7 +69,7 @@ if not code:
     st.info("👆 选股票开始")
     st.stop()
 
-if st.button("🚀 跑网格回测", type="primary", use_container_width=True):
+if st.button("🚀 跑网格回测", type="primary", width="stretch"):
     with st.spinner("回测中..."):
         try:
             t0_flag = None if t0 == "auto" else (t0 == "true")

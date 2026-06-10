@@ -149,7 +149,7 @@ mods = [
     ("paper_trader", "实盘模拟器(状态持久化/webhook)"),
 ]
 df_mods = pd.DataFrame(mods, columns=["模块", "能力"])
-st.dataframe(df_mods, use_container_width=True, hide_index=True)
+st.dataframe(df_mods, width="stretch", hide_index=True)
 
 
 if __name__ == "__main__":

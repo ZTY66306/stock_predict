@@ -52,7 +52,7 @@ for i, name_i in enumerate(all_inds):
                          key=f"ind_{name_i}"):
             selected_inds.append(name_i)
 
-if st.button("📊 加指标 + 画图", type="primary", use_container_width=True):
+if st.button("📊 加指标 + 画图", type="primary", width="stretch"):
     with st.spinner("计算中..."):
         df_plot = ind.add_all(df, include=tuple(selected_inds) if selected_inds else None)
 
@@ -95,7 +95,7 @@ if st.button("📊 加指标 + 画图", type="primary", use_container_width=True
 
     # 数据表
     with st.expander("📋 看带指标的完整数据"):
-        st.dataframe(df_plot.tail(60), use_container_width=True, height=400)
+        st.dataframe(df_plot.tail(60), width="stretch", height=400)
         utils.download_button(df_plot.reset_index(),
                               f"{code}_indicators.csv", "📥 下载完整数据 CSV")
 
@@ -123,7 +123,7 @@ if st.button("🔍 识别形态", type="secondary") and selected_ptns:
         if rows:
             df_hits = pd.DataFrame(rows).sort_values("日期", ascending=False)
             st.success(f"✅ 命中 {len(df_hits)} 次")
-            st.dataframe(df_hits, use_container_width=True, height=300)
+            st.dataframe(df_hits, width="stretch", height=300)
             utils.download_button(df_hits, f"{code}_patterns.csv")
         else:
             st.info("区间内无形态命中")

@@ -38,7 +38,7 @@ if not show_compare:
     utils.section_header("单策略回测")
     strategy_choice = st.selectbox("策略", ["lump_sum", "pure", "dip_buy", "smart"])
 
-    if st.button("🚀 跑单策略", type="primary", use_container_width=True):
+    if st.button("🚀 跑单策略", type="primary", width="stretch"):
         df_check = utils.cached_kline(code, start, end)
         if df_check.empty:
             st.error(f"❌ {code} 无数据")
@@ -94,7 +94,7 @@ if not show_compare:
 
 # ===== 4 策略对比 =====
 if show_compare:
-    if st.button("🚀 跑 4 策略对比", type="primary", use_container_width=True):
+    if st.button("🚀 跑 4 策略对比", type="primary", width="stretch"):
         df_check = utils.cached_kline(code, start, end)
         if df_check.empty:
             st.error(f"❌ {code} 无数据")
@@ -118,7 +118,7 @@ if show_compare:
             disp[col] = disp[col].apply(lambda x: f"{x*100:.2f}%" if isinstance(x, (int, float)) else x)
         disp["平均成本"] = disp["平均成本"].apply(
             lambda x: f"{x:.4f}" if isinstance(x, (int, float)) else x)
-        st.dataframe(disp, use_container_width=True, hide_index=True)
+        st.dataframe(disp, width="stretch", hide_index=True)
 
         # 4 策略市值曲线对比
         fig, ax = plt.subplots(figsize=(14, 6))

@@ -25,7 +25,7 @@ with col2:
 with col3:
     limit = st.number_input("最多选股", value=30, min_value=5, max_value=200)
 
-if st.button("🚀 跑选股", type="primary", use_container_width=True):
+if st.button("🚀 跑选股", type="primary", width="stretch"):
     with st.spinner("拉数据 + 跑条件中..."):
         try:
             picks = screener.screen(tmpl, date=str(date),
@@ -37,7 +37,7 @@ if st.button("🚀 跑选股", type="primary", use_container_width=True):
         st.warning("⚠️ 没有股票命中,可以放宽 lookback 或换模板试试")
     else:
         st.success(f"✅ 命中 {len(picks)} 只")
-        st.dataframe(picks, use_container_width=True, height=500)
+        st.dataframe(picks, width="stretch", height=500)
         utils.download_button(picks, f"screener_{tmpl}_{date}.csv")
 
 
@@ -82,7 +82,7 @@ with st.expander("➕ 加量化条件(PE / PB / 涨幅 / 换手率 / 量能)"):
         pc_lo, pc_hi = st.slider("涨跌幅", -20.0, 20.0, (0.0, 5.0))
         s.add(screener.pct_change_between(pc_lo / 100, pc_hi / 100))
 
-if st.button("🎯 跑自定义选股", type="secondary", use_container_width=True):
+if st.button("🎯 跑自定义选股", type="secondary", width="stretch"):
     if not chosen and not (pe_on or pb_on or pc_on):
         st.warning("请至少勾一个条件")
         st.stop()
@@ -96,5 +96,5 @@ if st.button("🎯 跑自定义选股", type="secondary", use_container_width=Tr
         st.warning("⚠️ 没股票命中,可放宽条件")
     else:
         st.success(f"✅ 命中 {len(picks)} 只")
-        st.dataframe(picks, use_container_width=True, height=500)
+        st.dataframe(picks, width="stretch", height=500)
         utils.download_button(picks, f"custom_screen_{date}.csv")

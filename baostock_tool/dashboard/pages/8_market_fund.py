@@ -74,11 +74,11 @@ with tab4:
         sec = mo.sector_limit_up_count(str(date_t))
         if not sec.empty:
             st.markdown("**行业涨停排行**")
-            st.dataframe(sec.head(20), use_container_width=True, height=400)
+            st.dataframe(sec.head(20), width="stretch", height=400)
         con = mo.concept_limit_up_count(str(date_t))
         if not con.empty:
             st.markdown("**概念/题材涨停排行**")
-            st.dataframe(con.head(20), use_container_width=True, height=400)
+            st.dataframe(con.head(20), width="stretch", height=400)
         # 市场情绪
         s = mo.market_sentiment(str(date_t))
         st.markdown("**市场情绪综合**")

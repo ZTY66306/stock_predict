@@ -45,7 +45,7 @@ if not code:
     st.info("👆 选股票开始")
     st.stop()
 
-if st.button("🚀 跑回测", type="primary", use_container_width=True):
+if st.button("🚀 跑回测", type="primary", width="stretch"):
     df = utils.cached_kline(code, start, end)
     if df.empty:
         st.error(f"❌ {code} 无数据")

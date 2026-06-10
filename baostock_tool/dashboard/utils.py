@@ -151,7 +151,7 @@ def show_df(df: pd.DataFrame, height: int = 400, key: Optional[str] = None):
     if df is None or df.empty:
         st.info("暂无数据")
         return
-    st.dataframe(df, height=height, key=key, use_container_width=True)
+    st.dataframe(df, height=height, key=key, width="stretch")
 
 
 def show_metrics(metrics: dict, cols: int = 4):
@@ -173,7 +173,7 @@ def plotly_or_matplotlib(fig, use_plotly: bool = True):
     if use_plotly:
         try:
             import plotly.graph_objects as go
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
             return
         except ImportError:
             pass
@@ -185,7 +185,7 @@ def download_button(df: pd.DataFrame, filename: str, label: str = "下载 CSV"):
     if df is None or df.empty:
         return
     csv = df.to_csv(index=False).encode("utf-8-sig")
-    st.download_button(label, csv, filename, "text/csv", use_container_width=True)
+    st.download_button(label, csv, filename, "text/csv", width="stretch")
 
 
 def error_boundary(func):

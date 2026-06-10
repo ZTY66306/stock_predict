@@ -39,7 +39,7 @@ with col2:
     webhook = st.text_input("Webhook URL(可选)", value="")
 
 # ===== 跑 =====
-if st.button("🚀 跑一次模拟", type="primary", use_container_width=True):
+if st.button("🚀 跑一次模拟", type="primary", width="stretch"):
     codes = [c.strip() for c in codes_input.split(",") if c.strip()]
     if not codes:
         st.warning("请输入至少 1 个股票代码")
@@ -72,7 +72,7 @@ if st.button("🚀 跑一次模拟", type="primary", use_container_width=True):
     if not sig_df.empty:
         active = sig_df[sig_df["signal"] != 0]
         if not active.empty:
-            st.dataframe(active, use_container_width=True)
+            st.dataframe(active, width="stretch")
         else:
             st.info("无触发信号")
 
@@ -85,7 +85,7 @@ if st.button("🚀 跑一次模拟", type="primary", use_container_width=True):
                                  "cost_basis", "realized_pnl"]].copy()
         # 算浮动盈亏
         pos_disp["unrealized_pnl"] = (pos_disp["last_price"] - pos_disp["avg_cost"]) * pos_disp["shares"]
-        st.dataframe(pos_disp, use_container_width=True)
+        st.dataframe(pos_disp, width="stretch")
     else:
         st.info("无持仓")
 
@@ -99,7 +99,7 @@ if st.button("🚀 跑一次模拟", type="primary", use_container_width=True):
     if state_path and os.path.exists(state_path):
         with open(state_path, "rb") as f:
             st.download_button("📥 下载状态文件", f.read(), "paper_state.json",
-                                "application/json", use_container_width=True)
+                                "application/json", width="stretch")
 
 # ===== 历史 =====
 if state_path and os.path.exists(state_path):
@@ -116,6 +116,6 @@ if state_path and os.path.exists(state_path):
         })
         hist = state.get("history", [])
         if hist:
-            st.dataframe(hist, use_container_width=True)
+            st.dataframe(hist, width="stretch")
     except Exception as e:
         st.warning(f"读状态文件失败: {e}")

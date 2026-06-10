@@ -58,7 +58,7 @@ with tab1:
 
     start, end = utils.period_selector(default="2y")
 
-    if st.button("🚀 跑融合", type="primary", use_container_width=True):
+    if st.button("🚀 跑融合", type="primary", width="stretch"):
         df = utils.cached_kline(code, start, end)
         if df.empty:
             st.error(f"❌ {code} 无数据")
@@ -126,7 +126,7 @@ with tab2:
 
     start, end = utils.period_selector(default="3y", key="rob_period")
 
-    if st.button("🚀 跑稳健性", type="primary", use_container_width=True):
+    if st.button("🚀 跑稳健性", type="primary", width="stretch"):
         df = utils.cached_kline(code2, start, end)
         if df.empty:
             st.error(f"❌ {code2} 无数据")
@@ -155,5 +155,5 @@ with tab2:
         # folds 明细
         st.markdown("### 📊 各 fold 明细")
         fdf = rr.folds_df()
-        st.dataframe(fdf, use_container_width=True, height=400)
+        st.dataframe(fdf, width="stretch", height=400)
         utils.download_button(fdf, f"{code2}_robustness_folds.csv")
